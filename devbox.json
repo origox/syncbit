@@ -1,0 +1,27 @@
+{
+  "$schema":  "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
+  "packages": [
+    "python311",
+    "python311Packages.pip",
+    "python311Packages.virtualenv"
+  ],
+  "shell": {
+    "init_hook": [
+      "echo 'Welcome to SyncBit - Fitbit to Victoria Metrics sync!' > /dev/null",
+      "if [ ! -d .venv ]; then python -m venv .venv; fi",
+      "source .venv/bin/activate",
+      "pip install -q --upgrade pip"
+    ],
+    "scripts": {
+      "install": [
+        "pip install -r requirements.txt"
+      ],
+      "run": [
+        "python main.py"
+      ],
+      "test": [
+        "python -m pytest tests/"
+      ]
+    }
+  }
+}
