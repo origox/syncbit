@@ -266,6 +266,40 @@ The deployment includes liveness and readiness probes to ensure the pod is healt
 
 ## Development
 
+### Commit Message Format
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/). All commits must follow this format:
+
+```
+<type>[optional scope]: <description>
+
+[optional body]
+
+[optional footer(s)]
+```
+
+**Types:**
+- `feat`: New feature
+- `fix`: Bug fix
+- `docs`: Documentation changes
+- `style`: Code style changes (formatting, etc)
+- `refactor`: Code refactoring
+- `perf`: Performance improvements
+- `test`: Adding or updating tests
+- `chore`: Maintenance tasks
+- `build`: Build system changes
+- `ci`: CI/CD changes
+
+**Examples:**
+```
+feat: add sleep tracking metrics
+fix(auth): handle token refresh edge case
+docs: update deployment instructions
+refactor(collector)!: change API response structure
+```
+
+A git hook validates commit messages automatically.
+
 ### Adding New Metrics
 
 1. Add collection logic in [src/fitbit_collector.py](src/fitbit_collector.py)
