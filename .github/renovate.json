@@ -1,0 +1,126 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "schedule": [
+    "before 6am on Monday"
+  ],
+  "timezone": "UTC",
+  "semanticCommits": "enabled",
+  "separateMajorMinor": true,
+  "separateMinorPatch": false,
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Label major updates",
+      "matchUpdateTypes": ["major"],
+      "labels": ["type/major"]
+    },
+    {
+      "description": "Label minor updates",
+      "matchUpdateTypes": ["minor"],
+      "labels": ["type/minor"]
+    },
+    {
+      "description": "Label patch updates",
+      "matchUpdateTypes": ["patch"],
+      "labels": ["type/patch"]
+    },
+    {
+      "description": "Label digest updates",
+      "matchUpdateTypes": ["digest"],
+      "labels": ["type/digest"]
+    },
+    {
+      "description": "Label Docker/container updates",
+      "matchDatasources": ["docker"],
+      "addLabels": ["renovate/container"]
+    },
+    {
+      "description": "Label GitHub Actions updates",
+      "matchManagers": ["github-actions"],
+      "addLabels": ["renovate/github-action"]
+    },
+    {
+      "description": "Label Python package updates",
+      "matchManagers": ["pip_requirements"],
+      "addLabels": ["renovate/python"]
+    },
+    {
+      "description": "Semantic commits for major updates",
+      "matchUpdateTypes": ["major"],
+      "semanticCommitType": "feat",
+      "commitMessagePrefix": "{{semanticCommitType}}({{semanticCommitScope}})!:",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "description": "Semantic commits for minor updates",
+      "matchUpdateTypes": ["minor"],
+      "semanticCommitType": "feat",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "description": "Semantic commits for patch updates",
+      "matchUpdateTypes": ["patch"],
+      "semanticCommitType": "fix",
+      "commitMessageExtra": "( {{currentVersion}} → {{newVersion}} )"
+    },
+    {
+      "description": "Semantic commits for digest updates",
+      "matchUpdateTypes": ["digest"],
+      "semanticCommitType": "chore",
+      "commitMessageExtra": "( {{currentDigestShort}} → {{newDigestShort}} )"
+    },
+    {
+      "description": "Docker semantic commits",
+      "matchDatasources": ["docker"],
+      "semanticCommitScope": "container",
+      "commitMessageTopic": "image {{depName}}"
+    },
+    {
+      "description": "GitHub Actions semantic commits",
+      "matchManagers": ["github-actions"],
+      "semanticCommitType": "ci",
+      "semanticCommitScope": "github-action",
+      "commitMessageTopic": "action {{depName}}"
+    },
+    {
+      "description": "Python package semantic commits",
+      "matchManagers": ["pip_requirements"],
+      "semanticCommitScope": "deps",
+      "commitMessageTopic": "{{depName}}"
+    },
+    {
+      "description": "Pin GitHub Actions to SHA",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    },
+    {
+      "description": "Group pytest packages together",
+      "matchPackagePatterns": ["^pytest"],
+      "groupName": "pytest ecosystem",
+      "semanticCommitScope": "deps-pytest"
+    },
+    {
+      "description": "Group code quality tools",
+      "matchPackageNames": ["black", "ruff"],
+      "groupName": "code quality tools",
+      "semanticCommitScope": "deps-lint"
+    },
+    {
+      "description": "Auto-merge patch and digest updates",
+      "matchUpdateTypes": ["patch", "digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Require approval for major updates",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}
