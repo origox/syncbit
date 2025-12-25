@@ -2,8 +2,6 @@
 
 import logging
 import sys
-from io import StringIO
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -196,9 +194,8 @@ def test_main_keyboard_interrupt(mock_validate, mock_setup_logging, mock_run_syn
     mock_run_sync.side_effect = KeyboardInterrupt()
 
     test_args = ["main.py"]
-    with patch.object(sys, "argv", test_args):
-        with pytest.raises(SystemExit) as exc_info:
-            main.main()
+    with patch.object(sys, "argv", test_args), pytest.raises(SystemExit) as exc_info:
+        main.main()
 
     assert exc_info.value.code == 0
 
@@ -211,9 +208,8 @@ def test_main_exception_handling(mock_validate, mock_setup_logging, mock_run_syn
     mock_run_sync.side_effect = Exception("Something went wrong")
 
     test_args = ["main.py"]
-    with patch.object(sys, "argv", test_args):
-        with pytest.raises(SystemExit) as exc_info:
-            main.main()
+    with patch.object(sys, "argv", test_args), pytest.raises(SystemExit) as exc_info:
+        main.main()
 
     assert exc_info.value.code == 1
 
@@ -226,9 +222,8 @@ def test_main_validation_error(mock_validate, mock_setup_logging, mock_run_sync)
     mock_validate.side_effect = ValueError("Invalid config")
 
     test_args = ["main.py"]
-    with patch.object(sys, "argv", test_args):
-        with pytest.raises(SystemExit) as exc_info:
-            main.main()
+    with patch.object(sys, "argv", test_args), pytest.raises(SystemExit) as exc_info:
+        main.main()
 
     assert exc_info.value.code == 1
     mock_setup_logging.assert_not_called()
