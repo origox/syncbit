@@ -29,7 +29,7 @@ jobs:
     
     - name: Run tests with coverage
       run: |
-        pytest tests/ -v --cov=src --cov-report=xml --cov-report=term
+        pytest tests/ -v --cov=src --cov=main --cov-report=xml --cov-report=term
     
     - name: Check coverage threshold
       run: |
@@ -65,8 +65,8 @@ jobs:
     
     - name: Check code formatting with Black
       run: |
-        black --check --diff src tests
+        black --check --diff src tests main.py
     
     - name: Lint with Ruff
       run: |
-        ruff check src tests
+        ruff check src tests main.py
