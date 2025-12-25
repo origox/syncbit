@@ -6,7 +6,6 @@ import webbrowser
 from datetime import datetime, timedelta
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
-from typing import Optional
 from urllib.parse import parse_qs, urlencode, urlparse
 
 import requests
@@ -26,10 +25,10 @@ class TokenManager:
             token_file: Path to store tokens
         """
         self.token_file = token_file
-        self.access_token: Optional[str] = None
-        self.refresh_token: Optional[str] = None
-        self.expires_at: Optional[datetime] = None
-        self.user_id: Optional[str] = None
+        self.access_token: str | None = None
+        self.refresh_token: str | None = None
+        self.expires_at: datetime | None = None
+        self.user_id: str | None = None
 
         self._load_tokens()
 
@@ -106,7 +105,7 @@ class TokenManager:
 class CallbackHandler(BaseHTTPRequestHandler):
     """HTTP handler for OAuth callback."""
 
-    authorization_code: Optional[str] = None
+    authorization_code: str | None = None
 
     def do_GET(self):
         """Handle GET request from OAuth callback."""

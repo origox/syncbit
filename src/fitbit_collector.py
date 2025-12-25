@@ -3,7 +3,6 @@
 import logging
 import time
 from datetime import datetime, timedelta
-from typing import Optional
 
 import requests
 
@@ -39,7 +38,7 @@ class FitbitCollector:
         self.auth = auth
         self.base_url = Config.FITBIT_API_BASE_URL
 
-    def _make_request(self, endpoint: str, params: Optional[dict] = None) -> dict:
+    def _make_request(self, endpoint: str, params: dict | None = None) -> dict:
         """Make authenticated request to Fitbit API.
 
         Args:
@@ -221,7 +220,7 @@ class FitbitCollector:
 
         return data_points
 
-    def get_first_available_date(self) -> Optional[datetime]:
+    def get_first_available_date(self) -> datetime | None:
         """Attempt to find the first date with available data.
 
         This tries to fetch data going back from today to find when

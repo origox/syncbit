@@ -4,7 +4,6 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -19,8 +18,8 @@ class SyncState:
             state_file: Path to state file
         """
         self.state_file = state_file
-        self.last_sync: Optional[datetime] = None
-        self.last_successful_date: Optional[str] = None
+        self.last_sync: datetime | None = None
+        self.last_successful_date: str | None = None
 
         self._load_state()
 
@@ -71,7 +70,7 @@ class SyncState:
         self._save_state()
         logger.info(f"Updated sync state: {date_str}")
 
-    def get_last_successful_date(self) -> Optional[str]:
+    def get_last_successful_date(self) -> str | None:
         """Get last successfully synced date.
 
         Returns:
