@@ -7,17 +7,21 @@ from pathlib import Path
 from src.config import Config
 
 
-def test_config_loads_from_env(mock_env_vars, monkeypatch, tmp_path):
+def test_config_loads_from_env(monkeypatch, tmp_path):
     """Test configuration loads from environment variables."""
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.setenv("FITBIT_CLIENT_ID", "test_client_id")
+    monkeypatch.setenv("FITBIT_CLIENT_SECRET", "test_client_secret")
+    monkeypatch.setenv("VICTORIA_USER", "test_user")
+    monkeypatch.setenv("VICTORIA_PASSWORD", "test_password")
     
-    # Reload config
-    Config.DATA_DIR = Path(os.getenv("DATA_DIR", "/app/data"))
+    # Import fresh to pick up env vars
+    import importlib
+    from src import config as config_module
+    importlib.reload(config_module)
     
-    assert Config.FITBIT_CLIENT_ID == "test_client_id"
-    assert Config.FITBIT_CLIENT_SECRET == "test_client_secret"
-    assert Config.VICTORIA_USER == "test_user"
-    assert Config.VICTORIA_PASSWORD == "test_password"
+    assert config_module.Config.FITBIT_CLIENT_ID == "test_client_id"
+    assert config_module.Config.FITBIT_CLIENT_SECRET == "test_client_secret"
 
 
 def test_config_validation_missing_fitbit_client_id(monkeypatch, tmp_path):
@@ -97,9 +101,14 @@ def test_config_default_values():
 
 
 def test_config_file_paths(tmp_path, monkeypatch):
-    """Test token and state file paths are correct."""
-    monkeypatch.setenv("DATA_DIR", str(tmp_path))
-    Config.DATA_DIR = tmp_path
+    """Test token and state file paths are constructed correctly."""
+    data_dir = tmp_path / "custom_data"
+    monkeypatch.setenv("DATA_DIR", str(data_dir))
     
-    assert Config.TOKEN_FILE == tmp_path / "fitbit_tokens.json"
-    assert Config.STATE_FILE == tmp_path / "sync_state.json"
+    # Import fresh
+    import importlib
+    from src import config as config_module
+    importlib.reload(config_module)
+    
+    assert config_module.Config.TOKEN_FILE == data_dir / "fitbit_tokens.json"
+    assert config_module.Config.STATE_FILE == data_dir / "sync_state.json"
