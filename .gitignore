@@ -19,6 +19,7 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+.coverage
 
 # Virtual environments
 venv/
@@ -50,3 +51,4 @@ data/
 # OS
 .DS_Store
 Thumbs.db
+.coverage
