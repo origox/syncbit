@@ -34,6 +34,9 @@ select = [
 ignore = [
     "E501",  # line too long (handled by black)
     "B008",  # do not perform function calls in argument defaults
+    "B904",  # raise from exceptions
+    "N802",  # function name (do_GET from http.server)
+    "UP007", # Use X | Y syntax (prefer Optional for Python 3.9 compat)
 ]
 
 # Exclude directories

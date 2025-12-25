@@ -1,8 +1,7 @@
 """Shared test fixtures and configuration."""
 
+
 import pytest
-from pathlib import Path
-from datetime import datetime
 
 
 @pytest.fixture
@@ -35,19 +34,14 @@ def sample_fitbit_activity():
             "caloriesOut": 2500,
             "distance": 8.05,
             "floors": 10,
-            "steps": 10000
+            "steps": 10000,
         },
         "summary": {
             "activeScore": -1,
             "activityCalories": 1234,
             "caloriesBMR": 1500,
             "caloriesOut": 2734,
-            "distances": [
-                {
-                    "activity": "total",
-                    "distance": 6.52
-                }
-            ],
+            "distances": [{"activity": "total", "distance": 6.52}],
             "elevation": 30.48,
             "fairlyActiveMinutes": 20,
             "floors": 12,
@@ -55,8 +49,8 @@ def sample_fitbit_activity():
             "marginalCalories": 500,
             "sedentaryMinutes": 720,
             "steps": 8543,
-            "veryActiveMinutes": 30
-        }
+            "veryActiveMinutes": 30,
+        },
     }
 
 
@@ -75,32 +69,32 @@ def sample_fitbit_heart_rate():
                             "max": 95,
                             "min": 30,
                             "minutes": 720,
-                            "name": "Out of Range"
+                            "name": "Out of Range",
                         },
                         {
                             "caloriesOut": 200.0,
                             "max": 133,
                             "min": 95,
                             "minutes": 180,
-                            "name": "Fat Burn"
+                            "name": "Fat Burn",
                         },
                         {
                             "caloriesOut": 300.0,
                             "max": 162,
                             "min": 133,
                             "minutes": 20,
-                            "name": "Cardio"
+                            "name": "Cardio",
                         },
                         {
                             "caloriesOut": 100.0,
                             "max": 220,
                             "min": 162,
                             "minutes": 5,
-                            "name": "Peak"
-                        }
+                            "name": "Peak",
+                        },
                     ],
-                    "restingHeartRate": 62
-                }
+                    "restingHeartRate": 62,
+                },
             }
         ]
     }
@@ -115,7 +109,7 @@ def sample_tokens():
         "expires_in": 28800,
         "scope": "activity heartrate",
         "token_type": "Bearer",
-        "user_id": "ABC123"
+        "user_id": "ABC123",
     }
 
 
