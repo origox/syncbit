@@ -306,6 +306,36 @@ A git hook validates commit messages automatically.
 2. Add metric formatting in [src/victoria_writer.py](src/victoria_writer.py)
 3. Update this README with new metrics
 
+### Testing
+
+The project includes a comprehensive test suite with 60+ tests covering all modules.
+
+```bash
+# Install test dependencies
+devbox run install-dev
+
+# Run all tests
+devbox run test
+
+# Run tests with coverage report
+devbox run test-cov
+
+# Run specific test file
+python -m pytest tests/test_config.py -v
+
+# Run tests matching pattern
+python -m pytest -k "test_auth" -v
+```
+
+**Test Coverage:**
+- Config: 98% coverage
+- Sync State: 95% coverage
+- Victoria Writer: 70% coverage
+- Fitbit Auth: 61% coverage
+- Fitbit Collector: 58% coverage
+- Scheduler: 67% coverage
+- **Overall: 69% coverage**
+
 ### Testing Locally
 
 ```bash
