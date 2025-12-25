@@ -2,8 +2,8 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": [
     "config:recommended",
-    ".renovate/labels.json5",
-    ".renovate/semanticCommits.json5"
+    "github>origox/syncbit//.renovate/labels.json5",
+    "github>origox/syncbit//.renovate/semanticCommits.json5"
   ],
   "schedule": [
     "before 6am on Monday"
