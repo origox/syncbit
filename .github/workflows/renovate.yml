@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - .renovaterc.json5
+      - .github/renovate.json
       - .renovate/**.json5
   schedule:
     # Run once per day at 2am UTC
@@ -22,7 +22,7 @@ jobs:
       - name: Run Renovate
         uses: renovatebot/github-action@v44.2.1
         with:
-          configurationFile: .renovaterc.json5
+          configurationFile: .github/renovate.json
           token: ${{ secrets.RENOVATE_TOKEN }}
         env:
           LOG_LEVEL: debug
