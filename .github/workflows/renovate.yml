@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - main
+    paths:
+      - .github/renovate.json
+      - .renovate/**.json5
   schedule:
     # Run once per day at 2am UTC
     - cron: '0 2 * * *'
@@ -17,9 +20,10 @@ jobs:
         uses: actions/checkout@v4
       
       - name: Run Renovate
-        uses: renovatebot/github-action@v40.3.2
+        uses: renovatebot/github-action@v44.2.1
         with:
           configurationFile: .github/renovate.json
           token: ${{ secrets.RENOVATE_TOKEN }}
         env:
           LOG_LEVEL: debug
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
