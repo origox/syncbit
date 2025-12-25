@@ -1,9 +1,11 @@
 pytest==9.0.2
 pytest-cov==7.0.0
 pytest-mock==3.12.0
-responses==0.24.1
+
 freezegun==1.5.5
+responses==0.25.8
+
 
 # Code quality
 black==25.12.0
-ruff==0.1.15
+ruff==0.14.10
