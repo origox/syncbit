@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: syncbit-config
+  namespace: default
+data:
+  VICTORIA_ENDPOINT: ""
+  FITBIT_REDIRECT_URI: "http://localhost:8080/callback"
+  SYNC_INTERVAL_MINUTES: "15"
+  DATA_DIR: "/app/data"
+  FITBIT_USER_ID: "default"
+  LOG_LEVEL: "INFO"

@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: syncbit
+  namespace: default
+  labels:
+    app: syncbit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: syncbit
+  template:
+    metadata:
+      labels:
+        app: syncbit
+    spec:
+      containers:
+      - name: syncbit
+        image: syncbit:latest
+        imagePullPolicy: Always
+        envFrom:
+        - configMapRef:
+            name: syncbit-config
+        - secretRef:
+            name: syncbit-secrets
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 30
+          periodSeconds: 300
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "import sys; sys.exit(0)"
+          initialDelaySeconds: 10
+          periodSeconds: 60
+          timeoutSeconds: 5
+      volumes:
+      - name: data
+        persistentVolumeClaim:
+          claimName: syncbit-data
+      restartPolicy: Always
