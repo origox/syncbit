@@ -17,6 +17,16 @@ extend-exclude = '''
 line-length = 100
 target-version = "py311"
 
+# Exclude directories
+exclude = [
+    ".git",
+    ".venv",
+    "__pycache__",
+    "build",
+    "dist",
+]
+
+[tool.ruff.lint]
 # Enable specific rule sets
 select = [
     "E",   # pycodestyle errors
@@ -39,16 +49,7 @@ ignore = [
     "UP007", # Use X | Y syntax (prefer Optional for Python 3.9 compat)
 ]
 
-# Exclude directories
-exclude = [
-    ".git",
-    ".venv",
-    "__pycache__",
-    "build",
-    "dist",
-]
-
-[tool.ruff.per-file-ignores]
+[tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]  # Allow unused imports in __init__.py
 
 [tool.pytest.ini_options]

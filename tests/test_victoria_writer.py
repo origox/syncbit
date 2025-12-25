@@ -1,8 +1,5 @@
 """Tests for Victoria Metrics writer."""
 
-from datetime import timedelta
-from unittest.mock import patch
-
 import pytest
 import responses
 
