@@ -1,5 +1,8 @@
 """Tests for Victoria Metrics writer."""
 
+from datetime import timedelta
+from unittest.mock import patch
+
 import pytest
 import responses
 
@@ -96,10 +99,14 @@ def test_timestamp_conversion(writer):
 
 
 @responses.activate
-def test_write_daily_data_success(writer, mock_env_vars, monkeypatch):
+def test_write_daily_data_success(writer):
     """Test successful write to Victoria Metrics."""
-    # Mock the Victoria Metrics endpoint with the actual URL
-    responses.add(responses.POST, Config.VICTORIA_ENDPOINT, status=204)
+    # Mock the Victoria Metrics endpoint
+    test_endpoint = "https://victoria-metrics.example.com/api/v1/import/prometheus"
+    responses.add(responses.POST, test_endpoint, status=204)
+
+    # Override writer endpoint for this test
+    writer.endpoint = test_endpoint
 
     data = {
         "date": "2025-12-24",
@@ -155,7 +162,11 @@ def test_write_daily_data_failure(writer, mock_env_vars):
 @responses.activate
 def test_test_connection_success(writer):
     """Test successful connection test."""
-    responses.add(responses.POST, Config.VICTORIA_ENDPOINT, status=204)
+    test_endpoint = "https://victoria-metrics.example.com/api/v1/import/prometheus"
+    responses.add(responses.POST, test_endpoint, status=204)
+
+    # Override writer endpoint for this test
+    writer.endpoint = test_endpoint
 
     result = writer.test_connection()
 

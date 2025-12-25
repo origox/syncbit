@@ -86,44 +86,41 @@ def test_fitbit_auth_init():
     assert hasattr(auth, "client_secret")
 
 
-def test_fitbit_auth_is_authorized_true(temp_token_file, sample_tokens, mock_env_vars, monkeypatch):
+def test_fitbit_auth_is_authorized_true(temp_token_file, sample_tokens):
     """Test is_authorized returns True when tokens exist."""
-    monkeypatch.setenv("DATA_DIR", str(temp_token_file.parent))
-
     # Save tokens
     with open(temp_token_file, "w") as f:
         json.dump(sample_tokens, f)
 
-    auth = FitbitAuth()
+    # Mock Config.TOKEN_FILE to point to our temp file
+    from pathlib import Path
 
-    assert auth.is_authorized() is True
+    with patch("src.fitbit_auth.Config") as mock_config:
+        mock_config.TOKEN_FILE = Path(temp_token_file)
+        auth = FitbitAuth()
+
+        assert auth.is_authorized() is True
 
 
-def test_fitbit_auth_get_valid_token_no_refresh_needed(temp_token_file, sample_tokens, monkeypatch):
+def test_fitbit_auth_get_valid_token_no_refresh_needed(temp_token_file, sample_tokens):
     """Test getting valid token when not expired."""
-    monkeypatch.setenv("DATA_DIR", str(temp_token_file.parent))
-
-    # Reload config
-    import importlib
-
-    from src import config
-
-    importlib.reload(config)
-
     # Save tokens manually
-    import json
-
     with open(temp_token_file, "w") as f:
         json.dump(sample_tokens, f)
 
-    auth = FitbitAuth()
+    # Mock Config.TOKEN_FILE to point to our temp file
+    from pathlib import Path
 
-    # Mock is_expired to return False - token is still valid
-    with patch.object(auth.token_manager, "is_expired", return_value=False):
-        token = auth.get_valid_token()
-        # Should return the access token
-        assert token is not None
-        assert isinstance(token, str)
+    with patch("src.fitbit_auth.Config") as mock_config:
+        mock_config.TOKEN_FILE = Path(temp_token_file)
+        auth = FitbitAuth()
+
+        # Mock is_expired to return False - token is still valid
+        with patch.object(auth.token_manager, "is_expired", return_value=False):
+            token = auth.get_valid_token()
+            # Should return the access token
+            assert token is not None
+            assert isinstance(token, str)
 
 
 def test_fitbit_auth_get_authorization_url():
