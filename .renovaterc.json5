@@ -1,24 +1,50 @@
+
 {
-  $schema: "https://docs.renovatebot.com/renovate-schema.json",
-  extends: [
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
     "config:recommended",
-    "docker:enableMajor",
-    "helpers:pinGitHubActionDigests",
-    "github>origox/syncbit//.renovate/labels.json5",
-    "github>origox/syncbit//.renovate/semanticCommits.json5",
-    ":automergeBranch",
-    ":disableRateLimiting",
-    ":dependencyDashboard",
-    ":semanticCommits",
-    ":timezone(Europe/Stockholm)",
+    "local>.renovate/labels.json5",
+    "local>.renovate/semanticCommits.json5"
   ],
-  dependencyDashboardTitle: "Renovate Dashboard 🤖",
-  suppressNotifications: [
-    "prEditedNotification",
-    "prIgnoreNotification",
+  "schedule": [
+    "before 6am on Monday"
   ],
-  ignorePaths: [
-    "**/*.sops.*",
-    "**/resources/**",
-  ],
+  "timezone": "UTC",
+  "semanticCommits": "enabled",
+  "separateMajorMinor": true,
+  "separateMinorPatch": false,
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "pin",
+  "packageRules": [
+    {
+      "description": "Pin GitHub Actions to SHA",
+      "matchManagers": ["github-actions"],
+      "pinDigests": true
+    },
+    {
+      "description": "Group pytest packages together",
+      "matchPackagePatterns": ["^pytest"],
+      "groupName": "pytest ecosystem",
+      "semanticCommitScope": "deps-pytest"
+    },
+    {
+      "description": "Group code quality tools",
+      "matchPackageNames": ["black", "ruff"],
+      "groupName": "code quality tools",
+      "semanticCommitScope": "deps-lint"
+    },
+    {
+      "description": "Auto-merge patch and digest updates",
+      "matchUpdateTypes": ["patch", "digest"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash"
+    },
+    {
+      "description": "Require approval for major updates",
+      "matchUpdateTypes": ["major"],
+      "dependencyDashboardApproval": true
+    }
+  ]
 }
