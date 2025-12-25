@@ -5,6 +5,7 @@ on:
     branches:
       - main
     paths:
+      - renovaterc.json5
       - .renovate/**.json5
   schedule:
     # Run once per day at 2am UTC
