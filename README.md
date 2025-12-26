@@ -10,7 +10,8 @@ SyncBit automatically collects activity data from your Fitbit account (Fitbit Ch
 - 📊 **Comprehensive Metrics** - Collects steps, heart rate, activity minutes, calories, and more
 - 🔄 **Automatic Sync** - Runs every 15 minutes to keep data up-to-date
 - 📈 **Historical Backfill** - Automatically syncs historical data from your Fitbit account
-- 🐳 **Docker & Kubernetes Ready** - Easy deployment with provided manifests
+- 🐳 **Docker & Kubernetes Ready** - Alpine-based multi-stage build, non-root user
+- 🔒 **Secure Secret Management** - External Secrets Operator + 1Password integration for production
 - 🏥 **Health Monitoring** - Built-in health checks and structured logging
 
 ## Collected Metrics
@@ -36,6 +37,11 @@ SyncBit automatically collects activity data from your Fitbit account (Fitbit Ch
    - Running Victoria Metrics with Prometheus import API enabled
    - Authentication credentials
 
+3. **For Production (Kubernetes)**
+   - [External Secrets Operator](https://external-secrets.io/) installed in cluster
+   - [1Password](https://1password.com/) vault for secret storage
+   - Helm 3.x for deployment
+
 ## Quick Start
 
 ### 1. Clone and Setup
@@ -50,13 +56,28 @@ cp .env.example .env
 
 ### 2. Configure Environment
 
-Edit `.env` with your credentials:
+**Option A: Using .env file**
+
+```bash
+cp .env.example .env
+# Edit .env with your credentials
+```
 
 ```env
 FITBIT_CLIENT_ID=your_client_id_here
 FITBIT_CLIENT_SECRET=your_client_secret_here
+VICTORIA_ENDPOINT=https://victoria-metrics.example.com/api/v1/import/prometheus
 VICTORIA_USER=your_username_here
 VICTORIA_PASSWORD=your_password_here
+```
+
+**Option B: Using direnv + 1Password (Recommended for developers)**
+
+```bash
+# Install direnv
+cp .envrc.example .envrc
+# Edit .envrc to point to your 1Password vault
+direnv allow
 ```
 
 ### 3. Local Development (with Devbox)
@@ -76,7 +97,7 @@ python main.py
 ### 4. Docker Deployment
 
 ```bash
-# Build image
+# Build image (Alpine-based, multi-stage)
 docker build -t syncbit:latest .
 
 # Run authorization (first time only)
@@ -84,35 +105,53 @@ docker run --rm -it \
   --env-file .env \
   -v $(pwd)/data:/app/data \
   -p 8080:8080 \
-  syncbit:latest python main.py --authorize
+  syncbit:latest --authorize
 
 # Run sync service
 docker run -d \
   --name syncbit \
   --env-file .env \
   -v $(pwd)/data:/app/data \
+  --restart unless-stopped \
   syncbit:latest
 ```
 
+**Note:** The Docker image runs as non-root user `syncbit` (UID 1000) for security.
+
 ### 5. Kubernetes Deployment
 
+**Production (with External Secrets Operator + 1Password):**
+
 ```bash
-# Create namespace (optional)
-kubectl create namespace syncbit
-
-# Create secrets
-cp k8s/secret.yaml.example k8s/secret.yaml
-# Edit k8s/secret.yaml with your credentials
-kubectl apply -f k8s/secret.yaml
-
-# Deploy application
-kubectl apply -f k8s/configmap.yaml
-kubectl apply -f k8s/pvc.yaml
-kubectl apply -f k8s/deployment.yaml
+# Install using Helm with ESO support
+helm repo add syncbit https://origox.github.io/syncbit
+helm install syncbit syncbit/syncbit \
+  --namespace syncbit \
+  --create-namespace \
+  --set externalSecrets.enabled=true \
+  --set externalSecrets.secretStore.name=1password-store \
+  --set externalSecrets.secretStore.provider=onepassword
 
 # Check status
-kubectl get pods -l app=syncbit
-kubectl logs -f deployment/syncbit
+kubectl get pods -n syncbit
+kubectl logs -f deployment/syncbit -n syncbit
+```
+
+**Development (with plain Kubernetes secrets):**
+
+```bash
+# Create namespace
+kubectl create namespace syncbit
+
+# Create secrets from env vars
+kubectl create secret generic syncbit-secrets -n syncbit \
+  --from-literal=fitbit-client-id="$FITBIT_CLIENT_ID" \
+  --from-literal=fitbit-client-secret="$FITBIT_CLIENT_SECRET" \
+  --from-literal=victoria-user="$VICTORIA_USER" \
+  --from-literal=victoria-password="$VICTORIA_PASSWORD"
+
+# Deploy using kubectl
+kubectl apply -f k8s/ -n syncbit
 ```
 
 ## Initial Authorization
@@ -158,18 +197,45 @@ kubectl exec -it deployment/syncbit -- python main.py --authorize
 kubectl scale deployment syncbit --replicas=1
 ```
 
+## Secret Management
+
+### Local Development
+
+Secrets are loaded from **environment variables**:
+- `.env` file (loaded by python-dotenv)
+- `.envrc` with direnv + 1Password CLI integration
+- System environment variables
+
+### Production (Kubernetes)
+
+Secrets are loaded from **mounted files** at `/run/secrets/*`:
+
+```
+1Password Vault → External Secrets Operator → Kubernetes Secret → Pod Volume → /run/secrets/
+```
+
+The application automatically detects the environment:
+- If `/run/secrets/{name}` exists → read from file (production)
+- Otherwise → fall back to environment variable (local dev)
+
+**Required secrets in production:**
+- `/run/secrets/fitbit_client_id`
+- `/run/secrets/fitbit_client_secret`
+- `/run/secrets/victoria_user`
+- `/run/secrets/victoria_password`
+
 ## Configuration
 
 ### Environment Variables
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `FITBIT_CLIENT_ID` | Fitbit OAuth Client ID | Required |
-| `FITBIT_CLIENT_SECRET` | Fitbit OAuth Client Secret | Required |
+| `FITBIT_CLIENT_ID` | Fitbit OAuth Client ID | Required (env or /run/secrets/fitbit_client_id) |
+| `FITBIT_CLIENT_SECRET` | Fitbit OAuth Client Secret | Required (env or /run/secrets/fitbit_client_secret) |
 | `FITBIT_REDIRECT_URI` | OAuth redirect URI | `http://localhost:8080/callback` |
 | `VICTORIA_ENDPOINT` | Victoria Metrics import endpoint |
-| `VICTORIA_USER` | Victoria Metrics username | Required |
-| `VICTORIA_PASSWORD` | Victoria Metrics password | Required |
+| `VICTORIA_USER` | Victoria Metrics username | Required (env or /run/secrets/victoria_user) |
+| `VICTORIA_PASSWORD` | Victoria Metrics password | Required (env or /run/secrets/victoria_password) |
 | `SYNC_INTERVAL_MINUTES` | Sync interval in minutes | `15` |
 | `DATA_DIR` | Data directory for tokens/state | `/app/data` |
 | `FITBIT_USER_ID` | User identifier for metric labels | `default` |
@@ -198,20 +264,22 @@ Fitbit API → Data Collector → Format Converter → Victoria Metrics
 syncbit/
 ├── src/
 │   ├── __init__.py           # Package init
-│   ├── config.py             # Configuration management
+│   ├── config.py             # Configuration + secret management
+│   ├── main.py               # Entry point
 │   ├── fitbit_auth.py        # OAuth2 authentication
 │   ├── fitbit_collector.py   # Data collection from Fitbit
 │   ├── victoria_writer.py    # Victoria Metrics writer
 │   ├── scheduler.py          # Sync scheduler
 │   └── sync_state.py         # State management
-├── k8s/
-│   ├── deployment.yaml       # Kubernetes deployment
-│   ├── configmap.yaml        # Configuration
-│   ├── secret.yaml.example   # Secrets template
-│   └── pvc.yaml              # Persistent volume claim
-├── main.py                   # Entry point
-├── requirements.txt          # Python dependencies
-├── Dockerfile                # Docker image
+├── tests/                    # Test suite (74 tests, 69% coverage)
+├── k8s/                      # Kubernetes manifests
+├── helm/                     # Helm chart with ESO support
+├── .github/workflows/        # CI/CD workflows
+│   ├── test.yml             # Run tests on PR
+│   └── docker-publish.yml   # Build and push Docker images
+├── Dockerfile                # Alpine-based multi-stage build
+├── .dockerignore             # Docker build context exclusions
+├── pyproject.toml            # Python dependencies
 ├── devbox.json               # Devbox configuration
 └── README.md                 # This file
 ```
