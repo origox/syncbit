@@ -252,10 +252,17 @@ class FitbitAuth:
         auth_url = self.get_authorization_url()
         # Log only the base URL to avoid exposing client_id in logs
         logger.info("Opening browser for Fitbit authorization")
+
+        # Write URL to file for headless/Docker environments (avoid logging sensitive data)
+        auth_url_file = Config.DATA_DIR / "auth_url.txt"
+        auth_url_file.write_text(auth_url)
+        logger.info(f"Authorization URL written to {auth_url_file}")
+
+        # Try to open browser
         webbrowser.open(auth_url)
 
         print("\nPlease authorize the application in your browser.")
-        print(f"If the browser doesn't open, visit: {auth_url}\n")
+        print(f"If the browser doesn't open, check the authorization URL at: {auth_url_file}\n")
 
         # Wait for callback
         logger.info(f"Waiting for callback on port {port}...")
@@ -265,6 +272,11 @@ class FitbitAuth:
         # Exchange code for token
         self.exchange_code_for_token(CallbackHandler.authorization_code)
         logger.info("Authorization complete!")
+
+        # Clean up auth URL file after successful authorization
+        if auth_url_file.exists():
+            auth_url_file.unlink()
+            logger.debug("Cleaned up authorization URL file")
 
     def is_authorized(self) -> bool:
         """Check if we have valid authorization.
