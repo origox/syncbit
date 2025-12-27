@@ -62,32 +62,63 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - name: Run Trivy vulnerability scanner (SARIF)
+      - name: Run Trivy vulnerability scanner on filesystem
         uses: aquasecurity/trivy-action@0.29.0
         with:
-          image-ref: ${{ env.IMAGE_NAME }}:scan
+          scan-type: 'fs'
+          scan-ref: '.'
           format: 'sarif'
-          output: 'trivy-results.sarif'
+          output: 'trivy-fs-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-          exit-code: '0'  # Don't fail the build, just report
+          exit-code: '0'
 
-      - name: Check SARIF file
-        if: always()
-        run: |
-          if [ -f trivy-results.sarif ]; then
-            echo "SARIF file exists"
-            echo "File size: $(stat -f%z trivy-results.sarif 2>/dev/null || stat -c%s trivy-results.sarif)"
-            echo "First 500 chars:"
-            head -c 500 trivy-results.sarif
-          else
-            echo "SARIF file not found!"
-          fi
-
-      - name: Upload Trivy results to GitHub Security
+      - name: Upload Trivy filesystem results to GitHub Security
         uses: github/codeql-action/upload-sarif@v4
         if: always()
         with:
-          sarif_file: 'trivy-results.sarif'
+          sarif_file: 'trivy-fs-results.sarif'
+          category: 'trivy-filesystem-scan'
+          wait-for-processing: true
+
+      - name: Run Trivy vulnerability scanner on container image
+        uses: aquasecurity/trivy-action@0.29.0
+        with:
+          scan-type: 'image'
+          image-ref: ${{ env.IMAGE_NAME }}:scan
+          format: 'sarif'
+          output: 'trivy-image-results.sarif'
+          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
+          exit-code: '0'  # Don't fail the build, just report
+
+      - name: Check SARIF files
+        if: always()
+        run: |
+          echo "=== Filesystem scan SARIF ==="
+          if [ -f trivy-fs-results.sarif ]; then
+            echo "File exists"
+            echo "File size: $(stat -f%z trivy-fs-results.sarif 2>/dev/null || stat -c%s trivy-fs-results.sarif)"
+            echo "First 500 chars:"
+            head -c 500 trivy-fs-results.sarif
+          else
+            echo "File not found!"
+          fi
+
+          echo ""
+          echo "=== Image scan SARIF ==="
+          if [ -f trivy-image-results.sarif ]; then
+            echo "File exists"
+            echo "File size: $(stat -f%z trivy-image-results.sarif 2>/dev/null || stat -c%s trivy-image-results.sarif)"
+            echo "First 500 chars:"
+            head -c 500 trivy-image-results.sarif
+          else
+            echo "File not found!"
+          fi
+
+      - name: Upload Trivy container image results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: 'trivy-image-results.sarif'
           category: 'trivy-container-scan'
           wait-for-processing: true
 
@@ -113,7 +144,8 @@ jobs:
         with:
           name: trivy-results
           path: |
-            trivy-results.sarif
+            trivy-fs-results.sarif
+            trivy-image-results.sarif
             trivy-results.json
           retention-days: 30
 
