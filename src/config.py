@@ -35,6 +35,7 @@ def _load_secret(name: str) -> str:
     env_var_map = {
         "fitbit_client_id": "FITBIT_CLIENT_ID",
         "fitbit_client_secret": "FITBIT_CLIENT_SECRET",
+        "victoria_endpoint": "VICTORIA_ENDPOINT",
         "victoria_user": "VICTORIA_USER",
         "victoria_password": "VICTORIA_PASSWORD",
     }
@@ -64,7 +65,7 @@ class Config:
     FITBIT_SCOPES: list[str] = ["activity", "heartrate", "profile", "sleep"]
 
     # Victoria Metrics settings (secrets - from mounted files or env vars)
-    VICTORIA_ENDPOINT: str = os.getenv("VICTORIA_ENDPOINT", "")
+    VICTORIA_ENDPOINT: str = _load_secret("victoria_endpoint")
     VICTORIA_USER: str = _load_secret("victoria_user")
     VICTORIA_PASSWORD: str = _load_secret("victoria_password")
 
@@ -92,6 +93,8 @@ class Config:
             errors.append("FITBIT_CLIENT_ID is required")
         if not cls.FITBIT_CLIENT_SECRET:
             errors.append("FITBIT_CLIENT_SECRET is required")
+        if not cls.VICTORIA_ENDPOINT:
+            errors.append("VICTORIA_ENDPOINT is required")
         if not cls.VICTORIA_USER:
             errors.append("VICTORIA_USER is required")
         if not cls.VICTORIA_PASSWORD:
