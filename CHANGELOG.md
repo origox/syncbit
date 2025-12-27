@@ -1,3 +1,11 @@
+## [1.1.0](https://github.com/origox/syncbit/compare/v1.0.0...v1.1.0) (2025-12-27)
+
+
+### Features
+
+* **ci:** implement semantic versioning with automated releases ([#24](https://github.com/origox/syncbit/issues/24)) ([be2f527](https://github.com/origox/syncbit/commit/be2f52741283a2d640951d80abe6d11c97bba882)), closes [#23](https://github.com/origox/syncbit/issues/23) [#23](https://github.com/origox/syncbit/issues/23)
+* **ci:** implement semantic versioning with automated releases ([#25](https://github.com/origox/syncbit/issues/25)) ([ffe2a8e](https://github.com/origox/syncbit/commit/ffe2a8ee70bc1f11ef883c24abd0576f75ff089d)), closes [#23](https://github.com/origox/syncbit/issues/23) [#23](https://github.com/origox/syncbit/issues/23)
+
 ## 1.0.0 (2025-12-27)
 
 
