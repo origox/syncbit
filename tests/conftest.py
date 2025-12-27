@@ -120,5 +120,3 @@ def sample_tokens():
         "token_type": "Bearer",
         "user_id": "ABC123",
     }
-
-
