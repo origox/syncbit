@@ -175,6 +175,8 @@ jobs:
 
   image-analysis:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     needs: build-and-scan
     if: github.event_name != 'pull_request'
 
