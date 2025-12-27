@@ -112,11 +112,17 @@ def sample_tokens():
     }
 
 
-@pytest.fixture
-def mock_env_vars(monkeypatch):
-    """Set up mock environment variables for testing."""
-    monkeypatch.setenv("FITBIT_CLIENT_ID", "test_client_id")
-    monkeypatch.setenv("FITBIT_CLIENT_SECRET", "test_client_secret")
-    monkeypatch.setenv("VICTORIA_USER", "test_user")
-    monkeypatch.setenv("VICTORIA_PASSWORD", "test_password")
-    monkeypatch.setenv("VICTORIA_ENDPOINT", "http://localhost:8428/api/v1/import/prometheus")
+@pytest.fixture(autouse=True, scope="session")
+def mock_env_vars():
+    """Set up mock environment variables for testing.
+
+    Uses autouse=True and session scope to ensure env vars are set
+    before any modules are imported.
+    """
+    import os
+
+    os.environ["FITBIT_CLIENT_ID"] = "test_client_id"
+    os.environ["FITBIT_CLIENT_SECRET"] = "test_client_secret"
+    os.environ["VICTORIA_USER"] = "test_user"
+    os.environ["VICTORIA_PASSWORD"] = "test_password"
+    os.environ["VICTORIA_ENDPOINT"] = "http://localhost:8428/api/v1/import/prometheus"
