@@ -250,7 +250,8 @@ class FitbitAuth:
 
         # Open browser for authorization
         auth_url = self.get_authorization_url()
-        logger.info(f"Opening browser for authorization: {auth_url}")
+        # Log only the base URL to avoid exposing client_id in logs
+        logger.info("Opening browser for Fitbit authorization")
         webbrowser.open(auth_url)
 
         print("\nPlease authorize the application in your browser.")
