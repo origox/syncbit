@@ -93,6 +93,16 @@ jobs:
           severity: 'CRITICAL,HIGH'
           exit-code: '1'  # Fail if critical/high vulnerabilities found
 
+      - name: Upload Trivy results as artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-results
+          path: |
+            trivy-results.sarif
+            trivy-results.json
+          retention-days: 30
+
       - name: Build and push multi-arch Docker image
         if: github.event_name != 'pull_request'
         uses: docker/build-push-action@v6
