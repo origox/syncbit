@@ -10,12 +10,52 @@ from dotenv import load_dotenv
 load_dotenv(override=False)
 
 
+def _load_secret(name: str) -> str:
+    """Load secret from mounted file or fall back to environment variable.
+
+    Production: Reads from /run/secrets/* (populated by ESO from 1Password)
+    Local Dev: Falls back to environment variables
+
+    Args:
+        name: Secret file name (e.g., "fitbit_client_id")
+
+    Returns:
+        Secret value as string
+
+    Raises:
+        ValueError: If secret is not found in either location
+    """
+    secret_path = Path(f"/run/secrets/{name}")
+
+    # Try mounted file first (production)
+    if secret_path.exists():
+        return secret_path.read_text().strip()
+
+    # Fallback to environment variable (local development)
+    env_var_map = {
+        "fitbit_client_id": "FITBIT_CLIENT_ID",
+        "fitbit_client_secret": "FITBIT_CLIENT_SECRET",
+        "victoria_endpoint": "VICTORIA_ENDPOINT",
+        "victoria_user": "VICTORIA_USER",
+        "victoria_password": "VICTORIA_PASSWORD",
+    }
+
+    env_value = os.getenv(env_var_map.get(name, ""))
+    if not env_value:
+        raise ValueError(
+            f"Secret not found: {name} "
+            f"(neither /run/secrets/{name} nor {env_var_map.get(name, 'N/A')} env var)"
+        )
+
+    return env_value
+
+
 class Config:
     """Application configuration."""
 
-    # Fitbit OAuth2 settings
-    FITBIT_CLIENT_ID: str = os.getenv("FITBIT_CLIENT_ID", "")
-    FITBIT_CLIENT_SECRET: str = os.getenv("FITBIT_CLIENT_SECRET", "")
+    # Fitbit OAuth2 settings (secrets - from mounted files or env vars)
+    FITBIT_CLIENT_ID: str = _load_secret("fitbit_client_id")
+    FITBIT_CLIENT_SECRET: str = _load_secret("fitbit_client_secret")
     FITBIT_REDIRECT_URI: str = os.getenv("FITBIT_REDIRECT_URI", "http://localhost:8080/callback")
 
     # Fitbit API settings
@@ -24,10 +64,10 @@ class Config:
     FITBIT_TOKEN_URL: str = "https://api.fitbit.com/oauth2/token"
     FITBIT_SCOPES: list[str] = ["activity", "heartrate", "profile", "sleep"]
 
-    # Victoria Metrics settings
-    VICTORIA_ENDPOINT: str = os.getenv("VICTORIA_ENDPOINT", "")
-    VICTORIA_USER: str = os.getenv("VICTORIA_USER", "")
-    VICTORIA_PASSWORD: str = os.getenv("VICTORIA_PASSWORD", "")
+    # Victoria Metrics settings (secrets - from mounted files or env vars)
+    VICTORIA_ENDPOINT: str = _load_secret("victoria_endpoint")
+    VICTORIA_USER: str = _load_secret("victoria_user")
+    VICTORIA_PASSWORD: str = _load_secret("victoria_password")
 
     # Application settings
     SYNC_INTERVAL_MINUTES: int = int(os.getenv("SYNC_INTERVAL_MINUTES", "15"))
@@ -53,6 +93,8 @@ class Config:
             errors.append("FITBIT_CLIENT_ID is required")
         if not cls.FITBIT_CLIENT_SECRET:
             errors.append("FITBIT_CLIENT_SECRET is required")
+        if not cls.VICTORIA_ENDPOINT:
+            errors.append("VICTORIA_ENDPOINT is required")
         if not cls.VICTORIA_USER:
             errors.append("VICTORIA_USER is required")
         if not cls.VICTORIA_PASSWORD:

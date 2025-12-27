@@ -1,6 +1,16 @@
 """Shared test fixtures and configuration."""
 
+import os
+
 import pytest
+
+# Set environment variables BEFORE any imports to ensure Config class
+# can load secrets during module import time
+os.environ["FITBIT_CLIENT_ID"] = "test_client_id"
+os.environ["FITBIT_CLIENT_SECRET"] = "test_client_secret"
+os.environ["VICTORIA_USER"] = "test_user"
+os.environ["VICTORIA_PASSWORD"] = "test_password"
+os.environ["VICTORIA_ENDPOINT"] = "http://localhost:8428/api/v1/import/prometheus"
 
 
 @pytest.fixture
@@ -110,13 +120,3 @@ def sample_tokens():
         "token_type": "Bearer",
         "user_id": "ABC123",
     }
-
-
-@pytest.fixture
-def mock_env_vars(monkeypatch):
-    """Set up mock environment variables for testing."""
-    monkeypatch.setenv("FITBIT_CLIENT_ID", "test_client_id")
-    monkeypatch.setenv("FITBIT_CLIENT_SECRET", "test_client_secret")
-    monkeypatch.setenv("VICTORIA_USER", "test_user")
-    monkeypatch.setenv("VICTORIA_PASSWORD", "test_password")
-    monkeypatch.setenv("VICTORIA_ENDPOINT", "http://localhost:8428/api/v1/import/prometheus")

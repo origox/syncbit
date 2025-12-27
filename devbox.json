@@ -1,12 +1,17 @@
 {
-  "$schema":  "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
+  "$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.16.0/.schema/devbox.schema.json",
   "packages": [
     "python311",
     "python311Packages.pip",
-    "python311Packages.virtualenv"
+    "python311Packages.virtualenv",
+    "docker@latest",
+    "docker-client@latest",
+    "direnv@latest",
+    "gh@latest"
   ],
   "shell": {
     "init_hook": [
+      "export PATH=$PATH:/mnt/c/Users/jfran/AppData/Local/Programs/Microsoft\\ VS\\ Code/bin",
       "echo 'Welcome to SyncBit - Fitbit to Victoria Metrics sync!' > /dev/null",
       "if [ ! -d .venv ]; then python -m venv .venv; fi",
       "source .venv/bin/activate",

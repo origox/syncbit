@@ -245,11 +245,12 @@ class FitbitAuth:
             port: Port for local callback server
         """
         # Start local server for callback
-        server = HTTPServer(("localhost", port), CallbackHandler)
+        # Bind to 0.0.0.0 to allow access from outside container (Docker/K8s)
+        server = HTTPServer(("0.0.0.0", port), CallbackHandler)
 
         # Open browser for authorization
         auth_url = self.get_authorization_url()
-        logger.info(f"Opening browser for authorization: {auth_url}")
+        logger.info("Opening browser for Fitbit authorization")
         webbrowser.open(auth_url)
 
         print("\nPlease authorize the application in your browser.")
