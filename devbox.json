@@ -4,15 +4,18 @@
     "python311",
     "python311Packages.pip",
     "python311Packages.virtualenv",
-    "docker@latest"
+    "docker@latest",
+    "docker-client@latest",
+    "direnv@latest",
+    "gh@latest"
   ],
   "shell": {
     "init_hook": [
-    	"export PATH=$PATH:/mnt/c/Users/jfran/AppData/Local/Programs/Microsoft\\ VS\\ Code/bin",
-    	"echo 'Welcome to SyncBit - Fitbit to Victoria Metrics sync!' > /dev/null",
-    	"if [ ! -d .venv ]; then python -m venv .venv; fi",
-    	"source .venv/bin/activate",
-    	"pip install -q --upgrade pip"
+      "export PATH=$PATH:/mnt/c/Users/jfran/AppData/Local/Programs/Microsoft\\ VS\\ Code/bin",
+      "echo 'Welcome to SyncBit - Fitbit to Victoria Metrics sync!' > /dev/null",
+      "if [ ! -d .venv ]; then python -m venv .venv; fi",
+      "source .venv/bin/activate",
+      "pip install -q --upgrade pip"
     ],
     "scripts": {
       "install": [

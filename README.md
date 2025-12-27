@@ -51,12 +51,20 @@ git clone <repository-url>
 cd syncbit
 
 # Copy environment template
-cp .env.example .env
-```
-
 ### 2. Configure Environment
 
-**Option A: Using .env file**
+**Recommended: Using direnv + 1Password (for local development)**
+
+```bash
+# Install direnv if not present
+cp .envrc.example .envrc
+# Edit .envrc to point to your 1Password vault or secret source
+direnv allow
+```
+
+This will automatically load secrets into your environment for all local commands and Docker builds/execs.
+
+**Alternative: Using .env file**
 
 ```bash
 cp .env.example .env
@@ -69,15 +77,6 @@ FITBIT_CLIENT_SECRET=your_client_secret_here
 VICTORIA_ENDPOINT=https://victoria-metrics.example.com/api/v1/import/prometheus
 VICTORIA_USER=your_username_here
 VICTORIA_PASSWORD=your_password_here
-```
-
-**Option B: Using direnv + 1Password (Recommended for developers)**
-
-```bash
-# Install direnv
-cp .envrc.example .envrc
-# Edit .envrc to point to your 1Password vault
-direnv allow
 ```
 
 ### 3. Local Development (with Devbox)
@@ -97,12 +96,13 @@ python main.py
 ### 4. Docker Deployment
 
 ```bash
+
 # Build image (Alpine-based, multi-stage)
 docker build -t syncbit:latest .
 
 # Run authorization (first time only)
+# If using direnv/.envrc, environment is already loaded—no need for --env-file
 docker run --rm -it \
-  --env-file .env \
   -v $(pwd)/data:/app/data \
   -p 8080:8080 \
   syncbit:latest --authorize
@@ -110,11 +110,12 @@ docker run --rm -it \
 # Run sync service
 docker run -d \
   --name syncbit \
-  --env-file .env \
   -v $(pwd)/data:/app/data \
   --restart unless-stopped \
   syncbit:latest
 ```
+
+> **Note:** If you use a `.env` file instead of direnv, add `--env-file .env` to the `docker run` commands above.
 
 **Note:** The Docker image runs as non-root user `syncbit` (UID 1000) for security.
 
@@ -199,14 +200,15 @@ kubectl scale deployment syncbit --replicas=1
 
 ## Secret Management
 
+
 ### Local Development
 
 Secrets are loaded from **environment variables**:
+- `.envrc` with direnv + 1Password CLI integration (recommended)
 - `.env` file (loaded by python-dotenv)
-- `.envrc` with direnv + 1Password CLI integration
 - System environment variables
 
-### Production (Kubernetes)
+### Production (Kubernetes with External Secrets)
 
 Secrets are loaded from **mounted files** at `/run/secrets/*`:
 
