@@ -129,6 +129,20 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: Extract metadata (tags, labels)
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
       - name: Log in to GitHub Container Registry
         uses: docker/login-action@v3
         with:
@@ -137,9 +151,11 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Pull and analyze image
+        env:
+          IMAGE_TAGS: ${{ steps.meta.outputs.tags }}
         run: |
-          # Get the latest tag
-          IMAGE_TAG="${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${GITHUB_REF_NAME}"
+          # Get the first tag from the list
+          IMAGE_TAG=$(echo "$IMAGE_TAGS" | head -n1)
           echo "Analyzing image: $IMAGE_TAG"
 
           # Pull the image
