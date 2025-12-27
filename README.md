@@ -419,6 +419,79 @@ pip install -r requirements.txt
 python main.py --log-level DEBUG
 ```
 
+## Versioning
+
+This project uses [Semantic Versioning](https://semver.org/) and [Conventional Commits](https://www.conventionalcommits.org/) for automated version management.
+
+### Version Format
+
+- `MAJOR.MINOR.PATCH` (e.g., `v1.2.3`)
+- `MAJOR`: Breaking changes
+- `MINOR`: New features (backwards compatible)
+- `PATCH`: Bug fixes (backwards compatible)
+
+### Docker Image Tags
+
+Docker images are automatically tagged with multiple formats on each release:
+
+```
+ghcr.io/origox/syncbit:latest          # Latest stable release (main branch)
+ghcr.io/origox/syncbit:v1.2.3          # Full semantic version
+ghcr.io/origox/syncbit:v1.2            # Major.minor version
+ghcr.io/origox/syncbit:v1              # Major version
+ghcr.io/origox/syncbit:sha-<commit>    # Specific commit (all branches)
+```
+
+**Production Recommendation:** Use specific version tags (e.g., `v1.2.3`) rather than `latest` for stability.
+
+### Commit Message Format
+
+We follow the [Conventional Commits](https://www.conventionalcommits.org/) specification:
+
+```
+<type>(<scope>): <description>
+
+[optional body]
+
+[optional footer]
+```
+
+**Types:**
+- `feat:` - New feature (triggers MINOR version bump)
+- `fix:` - Bug fix (triggers PATCH version bump)
+- `docs:` - Documentation changes (no version bump)
+- `chore:` - Maintenance tasks (no version bump)
+- `refactor:` - Code refactoring (triggers PATCH version bump)
+- `perf:` - Performance improvements (triggers PATCH version bump)
+- `test:` - Test changes (no version bump)
+- `ci:` - CI/CD changes (no version bump)
+- `BREAKING CHANGE:` - Breaking changes (triggers MAJOR version bump)
+
+**Examples:**
+```bash
+feat(metrics): add support for sleep data collection
+fix(auth): resolve token refresh timing issue
+docs(readme): update installation instructions
+chore(deps): update dependencies to latest versions
+```
+
+### Release Process
+
+Releases are fully automated:
+
+1. Merge commits to `main` branch following conventional commit format
+2. Semantic-release automatically:
+   - Analyzes commit messages
+   - Determines next version number
+   - Generates CHANGELOG.md
+   - Creates GitHub release with notes
+   - Triggers Docker build with version tags
+
+### Viewing Releases
+
+- [GitHub Releases](https://github.com/origox/syncbit/releases) - View all releases and changelogs
+- [Container Images](https://github.com/origox/syncbit/pkgs/container/syncbit) - Browse available Docker images
+
 ## License
 
 MIT
