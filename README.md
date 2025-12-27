@@ -487,6 +487,17 @@ Releases are fully automated:
    - Creates GitHub release with notes
    - Triggers Docker build with version tags
 
+**Repository Setup Required:**
+
+For automated Docker builds to trigger on releases, create a Personal Access Token (PAT) with `repo` scope and add it as a repository secret named `RELEASE_TOKEN`:
+
+1. Generate PAT: [GitHub Settings → Developer settings → Personal access tokens](https://github.com/settings/tokens)
+2. Grant `repo` scope
+3. Add as secret: Repository Settings → Secrets and variables → Actions → New repository secret
+4. Name: `RELEASE_TOKEN`
+
+> **Note:** Without `RELEASE_TOKEN`, the release workflow falls back to `GITHUB_TOKEN` which cannot trigger other workflows (Docker builds). Releases will be created but Docker images won't be automatically tagged with version numbers.
+
 ### Viewing Releases
 
 - [GitHub Releases](https://github.com/origox/syncbit/releases) - View all releases and changelogs
