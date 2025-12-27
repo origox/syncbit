@@ -13,7 +13,8 @@ WORKDIR /build
 COPY requirements.txt ./
 
 # Install Python dependencies
-RUN pip install --no-cache-dir --upgrade pip && \
+# Upgrade pip to 25.3+ to address CVE-2025-8869
+RUN pip install --no-cache-dir --upgrade "pip>=25.3" && \
     pip install --no-cache-dir -r requirements.txt
 
 
