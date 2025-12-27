@@ -8,7 +8,7 @@ from src.victoria_writer import VictoriaMetricsWriter
 
 
 @pytest.fixture
-def writer(mock_env_vars):
+def writer():
     """Create VictoriaMetricsWriter instance for testing."""
     return VictoriaMetricsWriter()
 
@@ -129,7 +129,7 @@ def test_write_daily_data_success(writer):
 
 
 @responses.activate
-def test_write_daily_data_failure(writer, mock_env_vars):
+def test_write_daily_data_failure(writer):
     """Test handling of write failure."""
     # Mock failed response
     responses.add(responses.POST, Config.VICTORIA_ENDPOINT, status=500)

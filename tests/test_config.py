@@ -72,7 +72,7 @@ def test_config_validation_missing_victoria_password(monkeypatch, tmp_path):
     assert "VICTORIA_PASSWORD is required" in str(exc_info.value)
 
 
-def test_config_validation_success(mock_env_vars, tmp_path, monkeypatch):
+def test_config_validation_success(tmp_path, monkeypatch):
     """Test validation passes with all required variables."""
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
 

@@ -136,7 +136,7 @@ def test_fitbit_auth_get_authorization_url():
     assert "redirect_uri=" in url
 
 
-def test_fitbit_auth_build_authorization_url_params(mock_env_vars):
+def test_fitbit_auth_build_authorization_url_params():
     """Test authorization URL contains required params."""
     auth = FitbitAuth()
     url = auth.get_authorization_url()
