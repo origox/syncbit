@@ -24,6 +24,13 @@
       "pinDigests": true
     },
     {
+      "description": "Group all Python version updates (Dockerfile + Devbox)",
+      "matchPackageNames": ["python"],
+      "groupName": "Python version",
+      "semanticCommitScope": "python",
+      "semanticCommitType": "feat"
+    },
+    {
       "description": "Group pytest packages together",
       "matchPackagePatterns": ["^pytest"],
       "groupName": "pytest ecosystem",
