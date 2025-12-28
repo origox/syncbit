@@ -1,3 +1,10 @@
+## [1.6.0](https://github.com/origox/syncbit/compare/v1.5.0...v1.6.0) (2025-12-28)
+
+
+### Features
+
+* **helm:** add OCI artifact support for Helm chart distribution ([#30](https://github.com/origox/syncbit/issues/30)) ([61a4c8f](https://github.com/origox/syncbit/commit/61a4c8f68e22944ec65cea24371df7c29ddd6b31)), closes [#29](https://github.com/origox/syncbit/issues/29)
+
 ## [1.5.0](https://github.com/origox/syncbit/compare/v1.4.0...v1.5.0) (2025-12-28)
 
 
