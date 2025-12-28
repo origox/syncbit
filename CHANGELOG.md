@@ -1,3 +1,10 @@
+## [1.3.0](https://github.com/origox/syncbit/compare/v1.2.0...v1.3.0) (2025-12-28)
+
+
+### Features
+
+* **helm:** add production-ready Helm chart for Kubernetes deployment ([#28](https://github.com/origox/syncbit/issues/28)) ([442c043](https://github.com/origox/syncbit/commit/442c0435adea9a634026070fbf1a299a51cd0e91)), closes [#27](https://github.com/origox/syncbit/issues/27)
+
 ## [1.2.0](https://github.com/origox/syncbit/compare/v1.1.0...v1.2.0) (2025-12-28)
 
 
