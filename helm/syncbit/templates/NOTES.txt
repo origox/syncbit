@@ -1,0 +1,91 @@
+Thank you for installing {{ .Chart.Name }}!
+
+Your release is named {{ .Release.Name }}.
+
+📊 SyncBit is now syncing Fitbit data to Victoria Metrics!
+
+=============================================================================
+IMPORTANT: OAuth2 Authorization Required
+=============================================================================
+
+Before SyncBit can sync data, you must complete Fitbit OAuth2 authorization:
+
+{{- if .Values.persistence.enabled }}
+
+1. Check the pod is running:
+   kubectl get pods -l app.kubernetes.io/name={{ include "syncbit.name" . }} -n {{ .Release.Namespace }}
+
+2. Run the authorization command:
+   kubectl exec -it deployment/{{ include "syncbit.fullname" . }} -n {{ .Release.Namespace }} -- python main.py --authorize
+
+3. Follow the browser prompts to authorize Fitbit access
+   (You may need to port-forward if running in a cluster)
+
+4. Tokens will be saved to the persistent volume
+
+{{- else }}
+
+⚠️  WARNING: Persistence is disabled!
+   Tokens will be lost when the pod restarts.
+   Enable persistence with: --set persistence.enabled=true
+
+{{- end }}
+
+=============================================================================
+Configuration
+=============================================================================
+
+Secrets:
+{{- if .Values.externalSecrets.enabled }}
+  ✓ Using External Secrets Operator
+  SecretStore: {{ .Values.externalSecrets.secretStore.name }} ({{ .Values.externalSecrets.secretStore.kind }})
+  Refresh Interval: {{ .Values.externalSecrets.refreshInterval }}
+{{- else }}
+  ✓ Using Kubernetes Secrets
+  Secret Name: {{ printf "%s-secrets" (include "syncbit.fullname" .) }}
+{{- end }}
+
+Application Settings:
+  Sync Interval: {{ .Values.config.syncIntervalMinutes }} minutes
+  Log Level: {{ .Values.config.logLevel }}
+  Fitbit User ID: {{ .Values.config.fitbitUserId }}
+  Backfill Start: {{ .Values.config.backfillStartDate }}
+
+Resources:
+  CPU: {{ .Values.resources.requests.cpu }} (request) / {{ .Values.resources.limits.cpu }} (limit)
+  Memory: {{ .Values.resources.requests.memory }} (request) / {{ .Values.resources.limits.memory }} (limit)
+{{- if .Values.persistence.enabled }}
+  Storage: {{ .Values.persistence.size }} ({{ .Values.persistence.storageClassName | default "default class" }})
+{{- end }}
+
+=============================================================================
+Monitoring
+=============================================================================
+
+Check logs:
+  kubectl logs -f deployment/{{ include "syncbit.fullname" . }} -n {{ .Release.Namespace }}
+
+Check pod status:
+  kubectl get pods -l app.kubernetes.io/name={{ include "syncbit.name" . }} -n {{ .Release.Namespace }}
+
+View configuration:
+  kubectl describe configmap {{ include "syncbit.fullname" . }} -n {{ .Release.Namespace }}
+
+=============================================================================
+Upgrade & Uninstall
+=============================================================================
+
+To upgrade this release:
+  helm upgrade {{ .Release.Name }} {{ .Chart.Name }} -n {{ .Release.Namespace }}
+
+To uninstall:
+  helm uninstall {{ .Release.Name }} -n {{ .Release.Namespace }}
+
+{{- if .Values.persistence.enabled }}
+  Note: PersistentVolumeClaim will NOT be deleted automatically.
+  To delete manually: kubectl delete pvc {{ include "syncbit.fullname" . }} -n {{ .Release.Namespace }}
+{{- end }}
+
+=============================================================================
+
+For more information, visit: https://github.com/origox/syncbit

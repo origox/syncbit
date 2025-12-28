@@ -1,0 +1,178 @@
+# Default values for syncbit.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+
+# -- Number of replicas for the deployment
+# Note: Only use 1 replica due to token file storage
+replicaCount: 1
+
+image:
+  # -- Container registry and repository
+  repository: ghcr.io/origox/syncbit
+  # -- Image pull policy
+  pullPolicy: IfNotPresent
+  # -- Overrides the image tag whose default is the chart appVersion
+  tag: ""
+
+# -- Image pull secrets for private registries
+imagePullSecrets: []
+
+# -- Override the name of the chart
+nameOverride: ""
+
+# -- Override the full name of the release
+fullnameOverride: ""
+
+serviceAccount:
+  # -- Specifies whether a service account should be created
+  create: true
+  # -- Annotations to add to the service account
+  annotations: {}
+  # -- The name of the service account to use.
+  # If not set and create is true, a name is generated using the fullname template
+  name: ""
+
+# -- Annotations to add to the pod
+podAnnotations: {}
+
+# -- Security context for the pod
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+# -- Security context for the container
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: false
+  capabilities:
+    drop:
+    - ALL
+
+# -- Resource requests and limits
+resources:
+  limits:
+    cpu: 500m
+    memory: 256Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# -- Node selector for pod assignment
+nodeSelector: {}
+
+# -- Tolerations for pod assignment
+tolerations: []
+
+# -- Affinity rules for pod assignment
+affinity: {}
+
+# Persistence for token storage
+persistence:
+  # -- Enable persistent volume for token storage
+  enabled: true
+  # -- Storage class name (leave empty for default)
+  storageClassName: ""
+  # -- Access modes for the persistent volume
+  accessModes:
+    - ReadWriteOnce
+  # -- Size of the persistent volume
+  size: 1Gi
+  # -- Annotations for the PVC
+  annotations: {}
+
+# External Secrets Operator configuration
+externalSecrets:
+  # -- Enable External Secrets Operator integration
+  enabled: false
+  # -- Refresh interval for secrets
+  refreshInterval: 1h
+  # SecretStore configuration
+  secretStore:
+    # -- Name of the SecretStore or ClusterSecretStore
+    name: "1password-store"
+    # -- Kind of secret store (SecretStore or ClusterSecretStore)
+    kind: SecretStore
+    # -- Provider type (onepassword, aws, gcpsm, vault, etc.)
+    provider: onepassword
+  # Secret references in the external secret store
+  secrets:
+    # -- Path to Fitbit Client ID in external secret store
+    fitbitClientId: "op://kubernetes/syncbit/FITBIT_CLIENT_ID"
+    # -- Path to Fitbit Client Secret in external secret store
+    fitbitClientSecret: "op://kubernetes/syncbit/FITBIT_CLIENT_SECRET"
+    # -- Path to Victoria Metrics user in external secret store
+    victoriaUser: "op://kubernetes/victoria-metrics/USER"
+    # -- Path to Victoria Metrics password in external secret store
+    victoriaPassword: "op://kubernetes/victoria-metrics/PASSWORD"
+    # -- Path to Victoria Metrics endpoint in external secret store
+    victoriaEndpoint: "op://kubernetes/victoria-metrics/ENDPOINT"
+
+# Kubernetes Secrets (used when externalSecrets.enabled is false)
+secrets:
+  # -- Fitbit OAuth2 Client ID (base64 encoded)
+  # Get this from https://dev.fitbit.com/apps
+  fitbitClientId: ""
+  # -- Fitbit OAuth2 Client Secret (base64 encoded)
+  fitbitClientSecret: ""
+  # -- Victoria Metrics username (base64 encoded)
+  victoriaUser: ""
+  # -- Victoria Metrics password (base64 encoded)
+  victoriaPassword: ""
+  # -- Victoria Metrics endpoint URL (base64 encoded)
+  victoriaEndpoint: ""
+
+# Application configuration
+config:
+  # -- Sync interval in minutes
+  syncIntervalMinutes: 15
+  # -- Log level (DEBUG, INFO, WARNING, ERROR)
+  logLevel: INFO
+  # -- Fitbit OAuth redirect URI
+  fitbitRedirectUri: "http://localhost:8080/callback"
+  # -- User ID for metric labels
+  fitbitUserId: "default"
+  # -- Backfill start date (YYYY-MM-DD format)
+  backfillStartDate: "2025-06-01"
+
+# Liveness probe configuration
+livenessProbe:
+  # -- Enable liveness probe
+  enabled: true
+  # -- Initial delay before liveness probe starts
+  initialDelaySeconds: 30
+  # -- Period between liveness probes
+  periodSeconds: 30
+  # -- Timeout for liveness probe
+  timeoutSeconds: 10
+  # -- Success threshold for liveness probe
+  successThreshold: 1
+  # -- Failure threshold for liveness probe
+  failureThreshold: 3
+
+# Readiness probe configuration
+readinessProbe:
+  # -- Enable readiness probe
+  enabled: true
+  # -- Initial delay before readiness probe starts
+  initialDelaySeconds: 10
+  # -- Period between readiness probes
+  periodSeconds: 10
+  # -- Timeout for readiness probe
+  timeoutSeconds: 5
+  # -- Success threshold for readiness probe
+  successThreshold: 1
+  # -- Failure threshold for readiness probe
+  failureThreshold: 3
+
+# Network policy
+networkPolicy:
+  # -- Enable network policy
+  enabled: false
+  # -- Egress rules (empty allows all)
+  egress: []
+  # -- Ingress rules (empty denies all)
+  ingress: []

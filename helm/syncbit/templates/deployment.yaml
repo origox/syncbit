@@ -1,0 +1,138 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "syncbit.fullname" . }}
+  labels:
+    {{- include "syncbit.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "syncbit.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/config: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- if not .Values.externalSecrets.enabled }}
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- end }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "syncbit.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "syncbit.serviceAccountName" . }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: {{ .Chart.Name }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ include "syncbit.imageTag" . }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        env:
+        # Application configuration from ConfigMap
+        - name: SYNC_INTERVAL_MINUTES
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: sync-interval-minutes
+        - name: LOG_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: log-level
+        - name: FITBIT_REDIRECT_URI
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: fitbit-redirect-uri
+        - name: FITBIT_USER_ID
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: fitbit-user-id
+        - name: BACKFILL_START_DATE
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: backfill-start-date
+        - name: DATA_DIR
+          value: "/app/data"
+        # Secrets loaded from /run/secrets/* (mounted from Secret or ExternalSecret)
+        # The application's config.py loads secrets from files at /run/secrets/
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        - name: secrets
+          mountPath: /run/secrets
+          readOnly: true
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        {{- if .Values.livenessProbe.enabled }}
+        livenessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "from src.config import Config; Config.validate()"
+          initialDelaySeconds: {{ .Values.livenessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.livenessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.livenessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.livenessProbe.successThreshold }}
+          failureThreshold: {{ .Values.livenessProbe.failureThreshold }}
+        {{- end }}
+        {{- if .Values.readinessProbe.enabled }}
+        readinessProbe:
+          exec:
+            command:
+            - python
+            - -c
+            - "from src.config import Config; Config.validate()"
+          initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+          periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+          timeoutSeconds: {{ .Values.readinessProbe.timeoutSeconds }}
+          successThreshold: {{ .Values.readinessProbe.successThreshold }}
+          failureThreshold: {{ .Values.readinessProbe.failureThreshold }}
+        {{- end }}
+      volumes:
+      - name: data
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "syncbit.fullname" . }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+      - name: secrets
+        secret:
+          secretName: {{ include "syncbit.secretName" . }}
+          items:
+          - key: fitbit-client-id
+            path: fitbit_client_id
+          - key: fitbit-client-secret
+            path: fitbit_client_secret
+          - key: victoria-user
+            path: victoria_user
+          - key: victoria-password
+            path: victoria_password
+          - key: victoria-endpoint
+            path: victoria_endpoint
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

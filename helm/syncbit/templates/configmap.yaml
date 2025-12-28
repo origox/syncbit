@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "syncbit.fullname" . }}
+  labels:
+    {{- include "syncbit.labels" . | nindent 4 }}
+data:
+  sync-interval-minutes: {{ .Values.config.syncIntervalMinutes | quote }}
+  log-level: {{ .Values.config.logLevel | quote }}
+  fitbit-redirect-uri: {{ .Values.config.fitbitRedirectUri | quote }}
+  fitbit-user-id: {{ .Values.config.fitbitUserId | quote }}
+  backfill-start-date: {{ .Values.config.backfillStartDate | quote }}
