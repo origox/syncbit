@@ -52,3 +52,6 @@ data/
 .DS_Store
 Thumbs.db
 .coverage
+
+kubeconfig.yaml
+kubeconfig 

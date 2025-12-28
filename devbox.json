@@ -7,7 +7,8 @@
     "docker@latest",
     "docker-client@latest",
     "direnv@latest",
-    "gh@latest"
+    "gh@latest",
+    "kubectl@latest"
   ],
   "shell": {
     "init_hook": [
