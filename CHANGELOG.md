@@ -1,3 +1,10 @@
+## [1.2.0](https://github.com/origox/syncbit/compare/v1.1.0...v1.2.0) (2025-12-28)
+
+
+### Features
+
+* **renovate:** group Python version updates across Dockerfile and Devbox ([#26](https://github.com/origox/syncbit/issues/26)) ([af2bdd7](https://github.com/origox/syncbit/commit/af2bdd735a73906a584f3f76b7cda9c043dbc201))
+
 ## [1.1.0](https://github.com/origox/syncbit/compare/v1.0.0...v1.1.0) (2025-12-27)
 
 
