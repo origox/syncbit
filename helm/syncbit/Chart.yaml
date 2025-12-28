@@ -1,0 +1,44 @@
+apiVersion: v2
+name: syncbit
+description: A Helm chart for SyncBit - Fitbit to Victoria Metrics data synchronization
+
+# Chart type: application
+type: application
+
+# Chart version (follows SemVer)
+version: 0.1.0
+
+# Application version (should match Docker image tags)
+appVersion: "1.2.0"
+
+# Maintainers
+maintainers:
+  - name: origox
+    url: https://github.com/origox
+
+# Keywords for chart discovery
+keywords:
+  - fitbit
+  - victoria-metrics
+  - monitoring
+  - health-tracking
+
+# Home page
+home: https://github.com/origox/syncbit
+
+# Source code
+sources:
+  - https://github.com/origox/syncbit
+
+# Icon (optional)
+# icon: https://raw.githubusercontent.com/origox/syncbit/main/assets/icon.png
+
+# Kubernetes version constraint
+kubeVersion: ">=1.19.0-0"
+
+# Dependencies (if any)
+# dependencies:
+#   - name: external-secrets
+#     version: "0.9.0"
+#     repository: https://charts.external-secrets.io
+#     condition: externalSecrets.enabled
