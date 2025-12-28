@@ -140,6 +140,10 @@ jobs:
 
       - name: Package Helm chart
         run: |
+          # Update appVersion in Chart.yaml to match the release version
+          sed -i "s/^appVersion: .*/appVersion: \"${{ needs.release.outputs.new_release_version }}\"/" ./helm/syncbit/Chart.yaml
+
+          # Package with the release version
           helm package ./helm/syncbit --version ${{ needs.release.outputs.new_release_version }}
 
       - name: Log in to GitHub Container Registry

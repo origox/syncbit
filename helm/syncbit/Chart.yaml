@@ -6,10 +6,12 @@ description: A Helm chart for SyncBit - Fitbit to Victoria Metrics data synchron
 type: application
 
 # Chart version (follows SemVer)
+# This is a placeholder - actual version is set by CI/CD during release
 version: 0.1.0
 
 # Application version (should match Docker image tags)
-appVersion: "1.4.0"
+# This is a placeholder - actual version is set by CI/CD during release
+appVersion: "0.1.0"
 
 # Maintainers
 maintainers:
