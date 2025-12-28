@@ -11,9 +11,24 @@ A Helm chart for deploying SyncBit - Fitbit to Victoria Metrics data synchroniza
 
 ## Installing the Chart
 
-### Basic Installation (Development)
+### From OCI Registry (Recommended)
 
-For development or testing with Kubernetes Secrets:
+The chart is published as an OCI artifact to GitHub Container Registry:
+
+```bash
+helm install syncbit oci://ghcr.io/origox/charts/syncbit --version 1.4.0 \
+  --set secrets.fitbitClientId="your-client-id" \
+  --set secrets.fitbitClientSecret="your-client-secret" \
+  --set secrets.victoriaEndpoint="https://victoria-metrics.example.com/api/v1/import/prometheus" \
+  --set secrets.victoriaUser="your-username" \
+  --set secrets.victoriaPassword="your-password"
+```
+
+**Note:** Replace `1.4.0` with the desired version. See [releases](https://github.com/origox/syncbit/releases) for available versions.
+
+### From Local Source (Development)
+
+For development or testing from local source:
 
 ```bash
 helm install syncbit ./helm/syncbit \
@@ -29,7 +44,7 @@ helm install syncbit ./helm/syncbit \
 For production deployments using External Secrets Operator with 1Password Connect:
 
 ```bash
-helm install syncbit ./helm/syncbit \
+helm install syncbit oci://ghcr.io/origox/charts/syncbit --version 1.4.0 \
   --set externalSecrets.enabled=true \
   --set externalSecrets.secretStore.name="onepassword" \
   --set externalSecrets.secretStore.kind="ClusterSecretStore"
@@ -412,6 +427,50 @@ To validate the chart:
 ```bash
 helm lint ./helm/syncbit
 ```
+
+## ArgoCD Integration
+
+Example ArgoCD Application manifest using the OCI registry:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: syncbit
+  namespace: argocd
+spec:
+  project: default
+
+  source:
+    chart: syncbit
+    repoURL: ghcr.io/origox/charts
+    targetRevision: 1.4.0
+    helm:
+      parameters:
+      - name: externalSecrets.enabled
+        value: "true"
+      - name: externalSecrets.secretStore.name
+        value: "onepassword"
+      - name: externalSecrets.secretStore.kind
+        value: "ClusterSecretStore"
+      - name: config.syncIntervalMinutes
+        value: "15"
+      - name: config.backfillStartDate
+        value: "2025-06-01"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true
+```
+
+**Note:** For OAuth authorization with ArgoCD, see the [Method 3: ArgoCD Deployments](#method-3-argocd-deployments) section above.
 
 ## License
 
