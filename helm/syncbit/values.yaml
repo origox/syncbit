@@ -93,23 +93,13 @@ externalSecrets:
   # SecretStore configuration
   secretStore:
     # -- Name of the SecretStore or ClusterSecretStore
-    name: "1password-store"
+    name: "onepassword"
     # -- Kind of secret store (SecretStore or ClusterSecretStore)
-    kind: SecretStore
-    # -- Provider type (onepassword, aws, gcpsm, vault, etc.)
-    provider: onepassword
-  # Secret references in the external secret store
-  secrets:
-    # -- Path to Fitbit Client ID in external secret store
-    fitbitClientId: "op://kubernetes/syncbit/FITBIT_CLIENT_ID"
-    # -- Path to Fitbit Client Secret in external secret store
-    fitbitClientSecret: "op://kubernetes/syncbit/FITBIT_CLIENT_SECRET"
-    # -- Path to Victoria Metrics user in external secret store
-    victoriaUser: "op://kubernetes/victoria-metrics/USER"
-    # -- Path to Victoria Metrics password in external secret store
-    victoriaPassword: "op://kubernetes/victoria-metrics/PASSWORD"
-    # -- Path to Victoria Metrics endpoint in external secret store
-    victoriaEndpoint: "op://kubernetes/victoria-metrics/ENDPOINT"
+    kind: ClusterSecretStore
+  # Note: Secret paths are hardcoded in templates/externalsecret.yaml
+  # Expected 1Password items in 'kubernetes' vault:
+  #   - syncbit: FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET
+  #   - victoria-metrics: USER, PASSWORD, ENDPOINT
 
 # Kubernetes Secrets (used when externalSecrets.enabled is false)
 secrets:

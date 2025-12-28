@@ -130,13 +130,15 @@ helm install syncbit syncbit/syncbit \
   --namespace syncbit \
   --create-namespace \
   --set externalSecrets.enabled=true \
-  --set externalSecrets.secretStore.name=1password-store \
-  --set externalSecrets.secretStore.provider=onepassword
+  --set externalSecrets.secretStore.name=onepassword \
+  --set externalSecrets.secretStore.kind=ClusterSecretStore
 
 # Check status
 kubectl get pods -n syncbit
 kubectl logs -f deployment/syncbit -n syncbit
 ```
+
+**Note:** Requires External Secrets Operator with a ClusterSecretStore named `onepassword`. The chart expects 1Password items `syncbit` and `victoria-metrics` in the `kubernetes` vault.
 
 **Development (with plain Kubernetes secrets):**
 

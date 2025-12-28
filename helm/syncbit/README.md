@@ -26,14 +26,19 @@ helm install syncbit ./helm/syncbit \
 
 ### Production Installation (with External Secrets Operator)
 
-For production deployments using External Secrets Operator:
+For production deployments using External Secrets Operator with 1Password Connect:
 
 ```bash
 helm install syncbit ./helm/syncbit \
   --set externalSecrets.enabled=true \
-  --set externalSecrets.secretStore.name="1password-store" \
-  --set externalSecrets.secretStore.provider="onepassword"
+  --set externalSecrets.secretStore.name="onepassword" \
+  --set externalSecrets.secretStore.kind="ClusterSecretStore"
 ```
+
+**Note:** This assumes you have:
+- External Secrets Operator installed in your cluster
+- A ClusterSecretStore named `onepassword` configured for 1Password Connect
+- 1Password items named `syncbit` and `victoria-metrics` in the `kubernetes` vault
 
 ## OAuth2 Authorization
 
@@ -116,14 +121,23 @@ The following table lists the configurable parameters of the SyncBit chart and t
 |-----------|-------------|---------|
 | `externalSecrets.enabled` | Enable ESO integration | `false` |
 | `externalSecrets.refreshInterval` | Secret refresh interval | `1h` |
-| `externalSecrets.secretStore.name` | SecretStore name | `1password-store` |
-| `externalSecrets.secretStore.kind` | SecretStore kind | `SecretStore` |
-| `externalSecrets.secretStore.provider` | Provider type | `onepassword` |
-| `externalSecrets.secrets.fitbitClientId` | Fitbit Client ID path | `op://kubernetes/syncbit/FITBIT_CLIENT_ID` |
-| `externalSecrets.secrets.fitbitClientSecret` | Fitbit Client Secret path | `op://kubernetes/syncbit/FITBIT_CLIENT_SECRET` |
-| `externalSecrets.secrets.victoriaUser` | Victoria user path | `op://kubernetes/victoria-metrics/USER` |
-| `externalSecrets.secrets.victoriaPassword` | Victoria password path | `op://kubernetes/victoria-metrics/PASSWORD` |
-| `externalSecrets.secrets.victoriaEndpoint` | Victoria endpoint path | `op://kubernetes/victoria-metrics/ENDPOINT` |
+| `externalSecrets.secretStore.name` | SecretStore name | `onepassword` |
+| `externalSecrets.secretStore.kind` | SecretStore kind | `ClusterSecretStore` |
+
+**1Password Item Structure:**
+
+When using External Secrets Operator, the chart expects the following 1Password items in the `kubernetes` vault:
+
+- **Item: `syncbit`**
+  - Field: `FITBIT_CLIENT_ID`
+  - Field: `FITBIT_CLIENT_SECRET`
+
+- **Item: `victoria-metrics`**
+  - Field: `USER`
+  - Field: `PASSWORD`
+  - Field: `ENDPOINT`
+
+The secret paths are hardcoded in the ExternalSecret template. To use different item names or fields, modify `templates/externalsecret.yaml`.
 
 ### Kubernetes Secrets (when ESO is disabled)
 
