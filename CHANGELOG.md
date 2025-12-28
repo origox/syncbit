@@ -1,3 +1,15 @@
+## [1.4.0](https://github.com/origox/syncbit/compare/v1.3.1...v1.4.0) (2025-12-28)
+
+
+### Features
+
+* **ci:** add Docker build to release workflow for semantic version tags ([a6ed834](https://github.com/origox/syncbit/commit/a6ed834e2771ec5c7d311dbe304aeda75ef801c2))
+
+
+### Documentation
+
+* **helm:** update documentation for ESO configuration ([62f65e3](https://github.com/origox/syncbit/commit/62f65e372793c6e422d7af6443007c245265104f))
+
 ## [1.3.1](https://github.com/origox/syncbit/compare/v1.3.0...v1.3.1) (2025-12-28)
 
 
