@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/origox/syncbit/compare/v1.3.0...v1.3.1) (2025-12-28)
+
+
+### Bug Fixes
+
+* **helm:** update ExternalSecret to use correct API version and 1Password format ([54481ac](https://github.com/origox/syncbit/commit/54481acf32b3693439294789eec6b1e760b25dee))
+
 ## [1.3.0](https://github.com/origox/syncbit/compare/v1.2.0...v1.3.0) (2025-12-28)
 
 
