@@ -9,7 +9,7 @@ type: application
 version: 0.1.0
 
 # Application version (should match Docker image tags)
-appVersion: "1.2.0"
+appVersion: "1.4.0"
 
 # Maintainers
 maintainers:

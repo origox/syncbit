@@ -1,0 +1,90 @@
+{{- if .Values.authorization.createJob }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ printf "%s-authorize" (include "syncbit.fullname" .) }}
+  labels:
+    {{- include "syncbit.labels" . | nindent 4 }}
+    app.kubernetes.io/component: authorization
+spec:
+  ttlSecondsAfterFinished: 3600
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        {{- include "syncbit.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: authorization
+    spec:
+      restartPolicy: Never
+      serviceAccountName: {{ include "syncbit.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: authorize
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["python", "main.py", "--authorize"]
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        env:
+        - name: FITBIT_REDIRECT_URI
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: fitbit-redirect-uri
+        - name: FITBIT_USER_ID
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: fitbit-user-id
+        - name: DATA_DIR
+          value: "/app/data"
+        # Secrets from Secret or ExternalSecret (loaded as env vars)
+        - name: FITBIT_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: fitbit-client-id
+        - name: FITBIT_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: fitbit-client-secret
+        - name: VICTORIA_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: victoria-user
+        - name: VICTORIA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: victoria-password
+        - name: VICTORIA_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: victoria-endpoint
+        volumeMounts:
+        - name: data
+          mountPath: /app/data
+        resources:
+          limits:
+            cpu: 200m
+            memory: 128Mi
+          requests:
+            cpu: 50m
+            memory: 64Mi
+      volumes:
+      - name: data
+        {{- if .Values.persistence.enabled }}
+        persistentVolumeClaim:
+          claimName: {{ include "syncbit.fullname" . }}
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
+{{- end }}

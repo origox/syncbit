@@ -42,19 +42,128 @@ helm install syncbit ./helm/syncbit \
 
 ## OAuth2 Authorization
 
-After installation, you must authorize SyncBit to access your Fitbit data:
+After installation, you must authorize SyncBit to access your Fitbit data. There are two methods:
+
+### Method 1: Using the Authorization Job (Recommended)
+
+Create a Kubernetes Job to handle authorization:
 
 ```bash
-# Get the pod name
-kubectl get pods -l app.kubernetes.io/name=syncbit
+# Create the authorization job
+helm upgrade syncbit ./helm/syncbit \
+  --reuse-values \
+  --set authorization.createJob=true
 
-# Run authorization
-kubectl exec -it <pod-name> -- python main.py --authorize
+# Watch the job pod start
+kubectl get pods -l app.kubernetes.io/component=authorization
 
-# Follow the browser prompts to complete authorization
+# Port-forward to access the OAuth callback server
+kubectl port-forward job/syncbit-authorize 8080:8080
+
+# Follow the authorization URL in the pod logs
+kubectl logs -f job/syncbit-authorize
+
+# Open the URL in your browser and complete the OAuth flow
+```
+
+After authorization is complete, disable the job and scale up the deployment:
+
+```bash
+# Remove the job
+helm upgrade syncbit ./helm/syncbit \
+  --reuse-values \
+  --set authorization.createJob=false
+
+# Scale up the deployment
+kubectl scale deployment syncbit --replicas=1
+```
+
+### Method 2: Local Authorization with Docker
+
+Authorize locally and upload tokens to the cluster:
+
+```bash
+# Run authorization locally with Docker
+docker run --rm -it \
+  -v $(pwd)/data:/app/data \
+  -p 8080:8080 \
+  -e FITBIT_CLIENT_ID="your-client-id" \
+  -e FITBIT_CLIENT_SECRET="your-client-secret" \
+  ghcr.io/origox/syncbit:latest --authorize
+
+# Upload the tokens to the Kubernetes PVC
+kubectl cp ./data/fitbit_tokens.json <syncbit-pod>:/app/data/
+
+# Or create a configmap and mount it
+kubectl create configmap syncbit-tokens --from-file=./data/fitbit_tokens.json
 ```
 
 The authorization tokens will be stored in the persistent volume.
+
+### Method 3: ArgoCD Deployments
+
+When using ArgoCD, use parameter overrides to avoid sync conflicts:
+
+```bash
+# Step 1: Scale down deployment via ArgoCD parameter
+argocd app set syncbit -p replicaCount=0
+
+# Step 2: Enable authorization job via ArgoCD parameter
+argocd app set syncbit -p authorization.createJob=true
+
+# Step 3: Get the job pod and view logs
+kubectl get pods -l app.kubernetes.io/component=authorization
+POD_NAME=$(kubectl get pods -l app.kubernetes.io/component=authorization -o jsonpath='{.items[0].metadata.name}')
+kubectl logs -f $POD_NAME
+
+# Step 4: Port-forward and complete OAuth (open URL from logs in browser)
+kubectl port-forward $POD_NAME 8080:8080
+
+# Step 5: Clean up via ArgoCD parameters
+argocd app set syncbit -p authorization.createJob=false
+argocd app set syncbit -p replicaCount=1
+```
+
+**Justfile Automation:**
+
+Create a `justfile` with this command for easier authorization:
+
+```justfile
+# Interactive OAuth authorization for ArgoCD deployments
+authorize-argocd app_name="syncbit":
+    #!/usr/bin/env bash
+    set -euo pipefail
+
+    echo "Starting authorization for {{ app_name }}..."
+    argocd app set {{ app_name }} -p replicaCount=0 -p authorization.createJob=true
+
+    echo "Waiting for job pod to start..."
+    sleep 5
+    POD_NAME=$(kubectl get pods -l app.kubernetes.io/component=authorization -o jsonpath='{.items[0].metadata.name}')
+
+    echo "=== Authorization URL ==="
+    kubectl logs $POD_NAME | grep "https://www.fitbit.com"
+
+    echo -e "\nStarting port-forward. Open the URL above in your browser."
+    kubectl port-forward $POD_NAME 8080:8080 &
+    PF_PID=$!
+
+    read -p "Press Enter after completing authorization in browser..."
+
+    kill $PF_PID 2>/dev/null || true
+    argocd app set {{ app_name }} -p replicaCount=1 -p authorization.createJob=false
+
+    echo "Done! Deployment should be running now."
+```
+
+Usage: `just authorize-argocd`
+
+**Why ArgoCD requires parameter overrides:**
+
+- ArgoCD continuously syncs from Git to enforce desired state
+- Using `kubectl scale` directly would be reverted by ArgoCD
+- Parameter overrides (`argocd app set -p`) tell ArgoCD about intentional drift
+- This keeps tokens out of Git while maintaining GitOps principles
 
 ## Configuration
 
@@ -158,6 +267,12 @@ The secret paths are hardcoded in the ExternalSecret template. To use different 
 | `config.fitbitRedirectUri` | OAuth redirect URI | `http://localhost:8080/callback` |
 | `config.fitbitUserId` | User ID for metric labels | `default` |
 | `config.backfillStartDate` | Backfill start date | `2025-06-01` |
+
+### Authorization
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `authorization.createJob` | Create Kubernetes Job for OAuth authorization | `false` |
 
 ### Probes
 
