@@ -66,14 +66,36 @@ spec:
               key: backfill-start-date
         - name: DATA_DIR
           value: "/app/data"
-        # Secrets loaded from /run/secrets/* (mounted from Secret or ExternalSecret)
-        # The application's config.py loads secrets from files at /run/secrets/
+        # Secrets from Secret or ExternalSecret (loaded as env vars)
+        # The application's config.py supports dual-mode: /run/secrets/* OR environment variables
+        - name: FITBIT_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: fitbit-client-id
+        - name: FITBIT_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: fitbit-client-secret
+        - name: VICTORIA_USER
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: victoria-user
+        - name: VICTORIA_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: victoria-password
+        - name: VICTORIA_ENDPOINT
+          valueFrom:
+            secretKeyRef:
+              name: {{ include "syncbit.secretName" . }}
+              key: victoria-endpoint
         volumeMounts:
         - name: data
           mountPath: /app/data
-        - name: secrets
-          mountPath: /run/secrets
-          readOnly: true
         resources:
           {{- toYaml .Values.resources | nindent 12 }}
         {{- if .Values.livenessProbe.enabled }}
@@ -110,20 +132,6 @@ spec:
         {{- else }}
         emptyDir: {}
         {{- end }}
-      - name: secrets
-        secret:
-          secretName: {{ include "syncbit.secretName" . }}
-          items:
-          - key: fitbit-client-id
-            path: fitbit_client_id
-          - key: fitbit-client-secret
-            path: fitbit_client_secret
-          - key: victoria-user
-            path: victoria_user
-          - key: victoria-password
-            path: victoria_password
-          - key: victoria-endpoint
-            path: victoria_endpoint
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
