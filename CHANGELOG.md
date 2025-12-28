@@ -1,3 +1,10 @@
+## [1.6.1](https://github.com/origox/syncbit/compare/v1.6.0...v1.6.1) (2025-12-28)
+
+
+### Bug Fixes
+
+* **helm:** ensure chart appVersion matches Docker image version ([cb3f902](https://github.com/origox/syncbit/commit/cb3f9024da0d64dda6d6775fd0cc9bd07f66f7cb))
+
 ## [1.6.0](https://github.com/origox/syncbit/compare/v1.5.0...v1.6.0) (2025-12-28)
 
 
