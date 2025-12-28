@@ -17,6 +17,29 @@
         "datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)\\n.+(:\\s|=)(&\\S+\\s)?(?<currentValue>\\S+)",
       ],
       datasourceTemplate: "{{#if datasource}}{{{datasource}}}{{else}}github-releases{{/if}}",
+    },
+    {
+      customType: "regex",
+      description: "Update Python version in Dockerfile",
+      fileMatch: ["^Dockerfile$"],
+      matchStrings: [
+        "FROM python:(?<currentValue>\\d+\\.\\d+)-alpine",
+      ],
+      depNameTemplate: "python",
+      datasourceTemplate: "docker",
+      versioningTemplate: "docker"
+    },
+    {
+      customType: "regex",
+      description: "Update Python version in devbox.json",
+      fileMatch: ["^devbox\\.json$"],
+      matchStrings: [
+        '"python(?<currentValue>\\d+)"',
+      ],
+      depNameTemplate: "python",
+      datasourceTemplate: "github-tags",
+      packageNameTemplate: "python/cpython",
+      extractVersionTemplate: "^v(?<version>\\d+\\.\\d+)\\.\\d+$"
     }
   ],
 }
