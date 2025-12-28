@@ -1,3 +1,10 @@
+## [1.5.0](https://github.com/origox/syncbit/compare/v1.4.0...v1.5.0) (2025-12-28)
+
+
+### Features
+
+* prep for helm deployment via argocd ([1b75935](https://github.com/origox/syncbit/commit/1b75935a4560780635d08042cd7a8ce00bbcc6a4))
+
 ## [1.4.0](https://github.com/origox/syncbit/compare/v1.3.1...v1.4.0) (2025-12-28)
 
 
