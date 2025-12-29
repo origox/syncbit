@@ -24,11 +24,21 @@
       "pinDigests": true
     },
     {
-      "description": "Group all Python version updates (Dockerfile + Devbox)",
+      "description": "Python Docker images - update automatically",
       "matchPackageNames": ["python"],
-      "groupName": "Python version",
+      "matchDatasources": ["docker"],
+      "groupName": "Python Docker version",
       "semanticCommitScope": "python",
       "semanticCommitType": "feat"
+    },
+    {
+      "description": "Python devbox - require approval (nixpkgs may lag behind)",
+      "matchPackageNames": ["python"],
+      "matchFiles": ["devbox.json"],
+      "groupName": "Python devbox version",
+      "semanticCommitScope": "python",
+      "semanticCommitType": "feat",
+      "dependencyDashboardApproval": true
     },
     {
       "description": "Group pytest packages together",
