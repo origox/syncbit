@@ -190,6 +190,35 @@ def refresh_access_token(self):
 
 **Secrets not loading** - Check both `/run/secrets/{name}` files AND environment variables. Config tries files first, falls back to env vars. See `config.py:_load_secret()` for mapping.
 
+## Dependency Management
+
+### Renovate Configuration
+
+**Python Version Strategy:**
+- Docker images (`Dockerfile`): Auto-update when available
+- Devbox packages (`devbox.json`): Require manual approval via Dependency Dashboard
+- Reason: nixpkgs lags behind Docker Hub by weeks (e.g., `python314` package unavailable when Docker image exists)
+
+**Auto-Merge Rules (.renovaterc.json5):**
+1. CLI tools (direnv, gh, docker-client): patch + minor updates → auto-merge immediately (no CI wait)
+2. All other deps: patch + digest updates → auto-merge after CI passes (test, lint, build-and-scan)
+3. Minor updates: manual review required
+4. Major updates: require approval via Dependency Dashboard
+
+**Digest Pinning:**
+- Docker images: Pinned to SHA256 (`python:3.11-alpine@sha256:...`)
+- GitHub Actions: Pinned to commit SHA (`actions/checkout@v6@sha256:...`)
+- Digest updates auto-merge after CI (security without breaking changes)
+
+**Checking Python Package Availability:**
+```bash
+# Check if python314 exists in nixpkgs
+devbox search python314
+
+# If not found, wait for nixpkgs to catch up before approving devbox update
+# Docker images can update first (production gets patches)
+```
+
 ## Commit Message Format
 
 Uses Conventional Commits. Format: `<type>[optional scope]: <description>`

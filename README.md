@@ -336,6 +336,75 @@ kubectl logs -f deployment/syncbit
 
 The deployment includes liveness and readiness probes to ensure the pod is healthy.
 
+## Dependency Management
+
+This project uses [Renovate](https://docs.renovatebot.com/) for automated dependency updates with a carefully configured strategy that balances security, stability, and convenience.
+
+### Update Strategy
+
+**Python Versions:**
+- **Docker images** (`Dockerfile`): Updates automatically when new Python versions are available
+- **Devbox** (`devbox.json`): Requires manual approval via Renovate Dashboard
+  - Reason: nixpkgs may lag behind official Python releases by several weeks
+  - Example: Python 3.14 available in Docker Hub, but `python314` package not yet in nixpkgs
+
+**Auto-Merge Rules:**
+- **CLI Tools** (direnv, gh, docker-client): Patch + minor updates auto-merge immediately
+  - Low risk, dev-only tools
+  - No CI wait required
+- **All Other Dependencies**: Patch + digest updates auto-merge after CI passes
+  - Requires: test suite, linting, and Docker build/security scan to pass
+  - Examples: Python base image digest updates, pip package patches
+- **Minor Updates**: Require manual review and merge
+- **Major Updates**: Require approval via Renovate Dependency Dashboard
+
+**Security & Reproducibility:**
+- Docker images pinned to SHA256 digests (`python:3.11-alpine@sha256:...`)
+- GitHub Actions pinned to commit SHAs (`actions/checkout@v6@sha256:...`)
+- Prevents tag poisoning and ensures immutable builds
+
+### Checking for Updates
+
+Renovate runs automatically every Monday before 6am UTC. You can also:
+
+```bash
+# View pending updates in GitHub
+# Go to: Issues → Dependency Dashboard
+
+# Or check Renovate logs
+gh run list --workflow=renovate.yml --limit 5
+gh run view <run-id> --log
+```
+
+### Python Version Sync
+
+When upgrading Python versions:
+
+1. Check if nixpkgs has the version available:
+   ```bash
+   devbox search python314  # Example for Python 3.14
+   ```
+
+2. If available, approve the devbox update in Renovate Dashboard
+
+3. If not available yet:
+   - Docker images will update first (production gets security patches)
+   - Devbox update waits until nixpkgs catches up (dev environment stays stable)
+   - This temporary version drift is intentional and safe
+
+### Manual Dependency Updates
+
+```bash
+# Update Python packages
+pip install --upgrade -r requirements.txt
+
+# Update devbox packages
+devbox update
+
+# Check outdated packages
+pip list --outdated
+```
+
 ## Development
 
 ### Commit Message Format

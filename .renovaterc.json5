@@ -24,6 +24,11 @@
       "pinDigests": true
     },
     {
+      "description": "Pin Docker images to SHA digest",
+      "matchDatasources": ["docker"],
+      "pinDigests": true
+    },
+    {
       "description": "Python Docker images - update automatically",
       "matchPackageNames": ["python"],
       "matchDatasources": ["docker"],
@@ -53,11 +58,22 @@
       "semanticCommitScope": "deps-lint"
     },
     {
-      "description": "Auto-merge patch and digest updates",
+      "description": "Auto-merge CLI tools (minor + patch)",
+      "matchPackageNames": ["direnv", "gh", "docker-client"],
+      "matchUpdateTypes": ["patch", "minor"],
+      "automerge": true,
+      "automergeType": "pr",
+      "automergeStrategy": "squash",
+      "ignoreTests": true
+    },
+    {
+      "description": "Auto-merge patch and digest updates (requires CI)",
       "matchUpdateTypes": ["patch", "digest"],
       "automerge": true,
       "automergeType": "pr",
-      "automergeStrategy": "squash"
+      "automergeStrategy": "squash",
+      "ignoreTests": false,
+      "requiredStatusChecks": ["test", "lint", "build-and-scan"]
     },
     {
       "description": "Require approval for major updates",

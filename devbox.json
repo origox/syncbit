@@ -4,7 +4,7 @@
     "python313",
     "python313Packages.pip",
     "python313Packages.virtualenv",
-    "docker@latest",
+    "docker@29.1.2",
     "docker-client@latest",
     "direnv@latest",
     "gh@latest",
