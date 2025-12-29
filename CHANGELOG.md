@@ -1,3 +1,14 @@
+## [3.0.0](https://github.com/origox/syncbit/compare/v2.0.0...v3.0.0) (2025-12-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** Update dependency gh ( 1.4.0 → 2.83.2 ) (#37)
+
+### Features
+
+* **deps:** Update dependency gh ( 1.4.0 → 2.83.2 ) ([#37](https://github.com/origox/syncbit/issues/37)) ([aecc1d5](https://github.com/origox/syncbit/commit/aecc1d51333398703257154314d85c702ff5e948))
+
 ## [2.0.0](https://github.com/origox/syncbit/compare/v1.6.2...v2.0.0) (2025-12-29)
 
 
