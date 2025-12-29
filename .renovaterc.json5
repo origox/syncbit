@@ -1,84 +1,111 @@
-
 {
-  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:recommended",
-    "github>origox/syncbit//.renovate/labels.json5",
-    "github>origox/syncbit//.renovate/semanticCommits.json5",
-    "github>origox/syncbit//.renovate/customManagers.json5"
+  $schema: 'https://docs.renovatebot.com/renovate-schema.json',
+  extends: [
+    'config:recommended',
+    'github>origox/syncbit//.renovate/labels.json5',
+    'github>origox/syncbit//.renovate/semanticCommits.json5',
+    'github>origox/syncbit//.renovate/customManagers.json5',
   ],
-  "schedule": [
-    "before 6am on Monday"
+  schedule: [
+    'before 6am on Monday',
   ],
-  "timezone": "UTC",
-  "semanticCommits": "enabled",
-  "separateMajorMinor": true,
-  "separateMinorPatch": false,
-  "prConcurrentLimit": 3,
-  "prHourlyLimit": 2,
-  "rangeStrategy": "pin",
-  "packageRules": [
+  timezone: 'UTC',
+  semanticCommits: 'enabled',
+  separateMajorMinor: true,
+  separateMinorPatch: false,
+  prConcurrentLimit: 3,
+  prHourlyLimit: 2,
+  rangeStrategy: 'pin',
+  packageRules: [
     {
-      "description": "Pin GitHub Actions to SHA",
-      "matchManagers": ["github-actions"],
-      "pinDigests": true
+      description: 'Pin GitHub Actions to SHA',
+      matchManagers: [
+        'github-actions',
+      ],
+      pinDigests: true,
     },
     {
-      "description": "Pin Docker images to SHA digest",
-      "matchDatasources": ["docker"],
-      "pinDigests": true
+      description: 'Pin Docker images to SHA digest',
+      matchDatasources: [
+        'docker',
+      ],
+      pinDigests: true,
     },
     {
-      "description": "Python Docker images - update automatically",
-      "matchPackageNames": ["python"],
-      "matchDatasources": ["docker"],
-      "groupName": "Python Docker version",
-      "semanticCommitScope": "python",
-      "semanticCommitType": "feat"
+      description: 'Python Docker images - update automatically',
+      matchPackageNames: [
+        'python',
+      ],
+      matchDatasources: [
+        'docker',
+      ],
+      groupName: 'Python Docker version',
+      semanticCommitScope: 'python',
+      semanticCommitType: 'feat',
     },
     {
-      "description": "Python devbox - require approval (nixpkgs may lag behind)",
-      "matchPackageNames": ["python"],
-      "matchFiles": ["devbox.json"],
-      "groupName": "Python devbox version",
-      "semanticCommitScope": "python",
-      "semanticCommitType": "feat",
-      "dependencyDashboardApproval": true
+      description: 'Python devbox - require approval (nixpkgs may lag behind)',
+      matchPackageNames: [
+        'python',
+      ],
+      matchFileNames: [
+        'devbox.json',
+      ],
+      groupName: 'Python devbox version',
+      semanticCommitScope: 'python',
+      semanticCommitType: 'feat',
+      dependencyDashboardApproval: true,
     },
     {
-      "description": "Group pytest packages together",
-      "matchPackagePatterns": ["^pytest"],
-      "groupName": "pytest ecosystem",
-      "semanticCommitScope": "deps-pytest"
+      description: 'Group pytest packages together',
+      groupName: 'pytest ecosystem',
+      semanticCommitScope: 'deps-pytest',
+      matchPackageNames: [
+        '/^pytest/',
+      ],
     },
     {
-      "description": "Group code quality tools",
-      "matchPackageNames": ["black", "ruff"],
-      "groupName": "code quality tools",
-      "semanticCommitScope": "deps-lint"
+      description: 'Group code quality tools',
+      matchPackageNames: [
+        'black',
+        'ruff',
+      ],
+      groupName: 'code quality tools',
+      semanticCommitScope: 'deps-lint',
     },
     {
-      "description": "Auto-merge CLI tools (minor + patch)",
-      "matchPackageNames": ["direnv", "gh", "docker-client"],
-      "matchUpdateTypes": ["patch", "minor"],
-      "automerge": true,
-      "automergeType": "pr",
-      "automergeStrategy": "squash",
-      "ignoreTests": true
+      description: 'Auto-merge CLI tools (minor + patch)',
+      matchPackageNames: [
+        'direnv',
+        'gh',
+        'docker-client',
+      ],
+      matchUpdateTypes: [
+        'patch',
+        'minor',
+      ],
+      automerge: true,
+      automergeType: 'pr',
+      automergeStrategy: 'squash',
+      ignoreTests: true,
     },
     {
-      "description": "Auto-merge patch and digest updates (requires CI)",
-      "matchUpdateTypes": ["patch", "digest"],
-      "automerge": true,
-      "automergeType": "pr",
-      "automergeStrategy": "squash",
-      "ignoreTests": false,
-      "requiredStatusChecks": ["test", "lint", "build-and-scan"]
+      description: 'Auto-merge patch and digest updates (requires CI)',
+      matchUpdateTypes: [
+        'patch',
+        'digest',
+      ],
+      automerge: true,
+      automergeType: 'pr',
+      automergeStrategy: 'squash',
+      ignoreTests: false,
     },
     {
-      "description": "Require approval for major updates",
-      "matchUpdateTypes": ["major"],
-      "dependencyDashboardApproval": true
-    }
-  ]
+      description: 'Require approval for major updates',
+      matchUpdateTypes: [
+        'major',
+      ],
+      dependencyDashboardApproval: true,
+    },
+  ],
 }
