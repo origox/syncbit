@@ -221,6 +221,40 @@ class SyncScheduler:
 
         logger.info(f"Backfill complete: {total_successful} successful, {total_failed} failed")
 
+    def sync_intraday_data(self) -> None:
+        """Perform intraday data synchronization."""
+        if not Config.ENABLE_INTRADAY_COLLECTION:
+            return
+
+        logger.info("Starting intraday data synchronization...")
+
+        try:
+            # Get yesterday's data (most recent complete day)
+            yesterday = datetime.now() - timedelta(days=1)
+
+            # Collect intraday data
+            data = self.collector.get_intraday_data(yesterday)
+
+            if not data or not data.get("resources"):
+                logger.info("No intraday data collected")
+                return
+
+            # Write to Victoria Metrics
+            success = self.writer.write_intraday_data(data)
+
+            if success:
+                logger.info(f"Successfully synced intraday data for {data['date']}")
+            else:
+                logger.error("Failed to write intraday data to Victoria Metrics")
+
+        except RateLimitError as e:
+            wait_time = e.retry_after if hasattr(e, "retry_after") else 60
+            logger.warning(f"Rate limited during intraday sync, waiting {wait_time}s")
+            time.sleep(wait_time)
+
+        except Exception as e:
+            logger.error(f"Error during intraday sync: {e}", exc_info=True)
+
     def start(self) -> None:
         """Start the scheduler."""
         logger.info("Starting SyncBit scheduler...")
@@ -260,6 +294,18 @@ class SyncScheduler:
             name="Fitbit data sync",
             replace_existing=True,
         )
+
+        # Schedule intraday sync (if enabled)
+        if Config.ENABLE_INTRADAY_COLLECTION:
+            logger.info(f"Scheduling intraday sync every {interval_minutes} minutes")
+            self.scheduler.add_job(
+                self.sync_intraday_data,
+                trigger=IntervalTrigger(minutes=interval_minutes),
+                id="sync_intraday_job",
+                name="Fitbit intraday data sync",
+                replace_existing=True,
+            )
+            logger.info("Intraday data collection enabled")
 
         # Start scheduler (blocking)
         try:

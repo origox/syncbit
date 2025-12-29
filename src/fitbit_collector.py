@@ -248,3 +248,91 @@ class FitbitCollector:
 
         # Fallback: assume data exists from 30 days ago
         return datetime.now() - timedelta(days=30)
+
+    def get_intraday_activity(
+        self, date: datetime, resource: str, detail_level: str = "5min"
+    ) -> dict:
+        """Get intraday activity data for a specific resource.
+
+        Args:
+            date: Date to fetch data for
+            resource: Activity resource (steps, calories, distance, elevation, floors)
+            detail_level: Data granularity (1min, 5min, 15min)
+
+        Returns:
+            Intraday dataset with time-series data
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/activities/{resource}/date/{date_str}/1d/{detail_level}.json"
+
+        logger.debug(f"Fetching intraday {resource} for {date_str} at {detail_level}")
+        data = self._make_request(endpoint)
+
+        # Extract intraday dataset
+        intraday_key = f"activities-{resource}-intraday"
+        return data.get(intraday_key, {})
+
+    def get_intraday_heart_rate(self, date: datetime, detail_level: str = "1min") -> dict:
+        """Get intraday heart rate data.
+
+        Args:
+            date: Date to fetch data for
+            detail_level: Data granularity (1sec, 1min, 5min, 15min)
+
+        Returns:
+            Intraday heart rate dataset
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/activities/heart/date/{date_str}/1d/{detail_level}.json"
+
+        logger.debug(f"Fetching intraday heart rate for {date_str} at {detail_level}")
+        data = self._make_request(endpoint)
+
+        return data.get("activities-heart-intraday", {})
+
+    def get_intraday_data(self, date: datetime) -> dict:
+        """Get all configured intraday data for a specific date.
+
+        Args:
+            date: Date to fetch data for
+
+        Returns:
+            Combined intraday data for all enabled resources
+        """
+        if not Config.ENABLE_INTRADAY_COLLECTION:
+            return {}
+
+        logger.info(f"Collecting intraday data for {date.strftime('%Y-%m-%d')}")
+
+        intraday_data = {
+            "date": date.strftime("%Y-%m-%d"),
+            "timestamp": int(date.timestamp()),
+            "resources": {},
+        }
+
+        # Collect activity resources
+        for resource in Config.INTRADAY_RESOURCES:
+            try:
+                if resource == "heart_rate":
+                    dataset = self.get_intraday_heart_rate(date, Config.INTRADAY_HEART_RATE_DETAIL)
+                else:
+                    dataset = self.get_intraday_activity(
+                        date, resource, Config.INTRADAY_DETAIL_LEVEL
+                    )
+
+                intraday_data["resources"][resource] = dataset
+
+                # Rate limit delay between resources
+                time.sleep(5)  # Conservative 5-second delay
+
+            except RateLimitError:
+                # Re-raise rate limit errors to be handled by caller
+                raise
+            except Exception as e:
+                # Log error but continue with other resources
+                logger.error(
+                    f"Error collecting intraday {resource} for {date.strftime('%Y-%m-%d')}: {e}"
+                )
+                intraday_data["resources"][resource] = {}
+
+        return intraday_data
