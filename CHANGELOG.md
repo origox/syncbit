@@ -1,3 +1,10 @@
+## [3.1.0](https://github.com/origox/syncbit/compare/v3.0.0...v3.1.0) (2025-12-29)
+
+
+### Features
+
+* add Fitbit intraday data collection ([#39](https://github.com/origox/syncbit/issues/39)) ([e444717](https://github.com/origox/syncbit/commit/e4447172073b7c7336a3ac2f2face744cf18cca1)), closes [#38](https://github.com/origox/syncbit/issues/38) [#38](https://github.com/origox/syncbit/issues/38) [#38](https://github.com/origox/syncbit/issues/38)
+
 ## [3.0.0](https://github.com/origox/syncbit/compare/v2.0.0...v3.0.0) (2025-12-29)
 
 
