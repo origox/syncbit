@@ -66,6 +66,37 @@ spec:
               key: backfill-start-date
         - name: DATA_DIR
           value: "/app/data"
+        # Intraday data collection configuration
+        - name: ENABLE_INTRADAY_COLLECTION
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: enable-intraday-collection
+        - name: INTRADAY_DETAIL_LEVEL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: intraday-detail-level
+        - name: INTRADAY_HEART_RATE_DETAIL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: intraday-heart-rate-detail
+        - name: INTRADAY_RESOURCES
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: intraday-resources
+        - name: ENABLE_INTRADAY_BACKFILL
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: enable-intraday-backfill
+        - name: INTRADAY_BACKFILL_DAYS
+          valueFrom:
+            configMapKeyRef:
+              name: {{ include "syncbit.fullname" . }}
+              key: intraday-backfill-days
         # Secrets from Secret or ExternalSecret (loaded as env vars)
         # The application's config.py supports dual-mode: /run/secrets/* OR environment variables
         - name: FITBIT_CLIENT_ID

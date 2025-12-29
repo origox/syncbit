@@ -10,3 +10,10 @@ data:
   fitbit-redirect-uri: {{ .Values.config.fitbitRedirectUri | quote }}
   fitbit-user-id: {{ .Values.config.fitbitUserId | quote }}
   backfill-start-date: {{ .Values.config.backfillStartDate | quote }}
+  # Intraday data collection
+  enable-intraday-collection: {{ .Values.config.intraday.enabled | quote }}
+  intraday-detail-level: {{ .Values.config.intraday.detailLevel | quote }}
+  intraday-heart-rate-detail: {{ .Values.config.intraday.heartRateDetail | quote }}
+  intraday-resources: {{ .Values.config.intraday.resources | quote }}
+  enable-intraday-backfill: {{ .Values.config.intraday.backfillEnabled | quote }}
+  intraday-backfill-days: {{ .Values.config.intraday.backfillDays | quote }}
