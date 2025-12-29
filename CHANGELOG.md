@@ -1,3 +1,10 @@
+## [1.6.2](https://github.com/origox/syncbit/compare/v1.6.1...v1.6.2) (2025-12-29)
+
+
+### Bug Fixes
+
+* clean up renovate and versions. Require ci to pass when automerge prod PR from renovate ([641dd37](https://github.com/origox/syncbit/commit/641dd3727e382bc4562f24f915e91aa8d1f171b9))
+
 ## [1.6.1](https://github.com/origox/syncbit/compare/v1.6.0...v1.6.1) (2025-12-28)
 
 
