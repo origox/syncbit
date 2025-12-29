@@ -97,51 +97,71 @@
         }
       }
     },
-    "docker@latest": {
-      "last_modified": "2025-12-15T04:22:15Z",
-      "resolved": "github:NixOS/nixpkgs/09b8fda8959d761445f12b55f380d90375a1d6bb#docker",
+    "docker@20.10.26": {
+      "last_modified": "2023-11-09T21:23:13Z",
+      "resolved": "github:NixOS/nixpkgs/1f37660f64a850233baab512c9b9bd83fb72be57#docker",
       "source": "devbox-search",
-      "version": "29.1.2",
+      "version": "20.10.26",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/38qw6ldsflj4jzvvfm2q7f4i7x1m79n7-docker-29.1.2",
+              "path": "/nix/store/vdrzxfsq4gjhvqq34bjrj8pdxyimf9ix-docker-20.10.26",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/46mc6hp9lwgrn91cjkwx9bnc5h3gf9al-docker-20.10.26-man",
               "default": true
             }
           ],
-          "store_path": "/nix/store/38qw6ldsflj4jzvvfm2q7f4i7x1m79n7-docker-29.1.2"
+          "store_path": "/nix/store/vdrzxfsq4gjhvqq34bjrj8pdxyimf9ix-docker-20.10.26"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/qxgaqaqhnfb7772dgkmcp4xs75a78f0s-docker-29.1.2",
+              "path": "/nix/store/bx3xh91f97p8m31f8fjf8dfb2k4z241c-docker-20.10.26",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/kxwz7ngrjvbczzdgcp9k7lcdkx6j05f6-docker-20.10.26-man",
               "default": true
             }
           ],
-          "store_path": "/nix/store/qxgaqaqhnfb7772dgkmcp4xs75a78f0s-docker-29.1.2"
+          "store_path": "/nix/store/bx3xh91f97p8m31f8fjf8dfb2k4z241c-docker-20.10.26"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/1ybyvg7fkr64brb6hh33wchw1bwghi93-docker-29.1.2",
+              "path": "/nix/store/lgwaddi4frhn078d36ylvnjqsnhjq7x6-docker-20.10.26",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/9c7anqxrw8mxm75n4hlg3bvzx26myw6g-docker-20.10.26-man",
               "default": true
             }
           ],
-          "store_path": "/nix/store/1ybyvg7fkr64brb6hh33wchw1bwghi93-docker-29.1.2"
+          "store_path": "/nix/store/lgwaddi4frhn078d36ylvnjqsnhjq7x6-docker-20.10.26"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/lmapifc86ql4xysybykc37b4wg02f9i5-docker-29.1.2",
+              "path": "/nix/store/4cj96k8hk8m81dbp007pf772vrigal2h-docker-20.10.26",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/nix/store/4hz90sczg3wr67qk053kmlhdmrn858y5-docker-20.10.26-man",
               "default": true
             }
           ],
-          "store_path": "/nix/store/lmapifc86ql4xysybykc37b4wg02f9i5-docker-29.1.2"
+          "store_path": "/nix/store/4cj96k8hk8m81dbp007pf772vrigal2h-docker-20.10.26"
         }
       }
     },
@@ -332,15 +352,50 @@
     "python311": {
       "plugin_version": "0.0.4",
       "resolved": "github:NixOS/nixpkgs/23735a82a828372c4ef92c660864e82fbe2f5fbe?narHash=sha256-yqHBL2wYGwjGL2GUF2w3tofWl8qO9tZEuI4wSqbCrtE%3D#python311",
-      "source": "nixpkg"
+      "source": "nixpkg",
+      "systems": {
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "path": "/tmp/containerbase/cache/nix/store/xbqks7q032mys8vg2184m62z5b9w87gz-python3-3.11.14",
+              "default": true
+            }
+          ]
+        }
+      }
     },
     "python311Packages.pip": {
       "resolved": "github:NixOS/nixpkgs/23735a82a828372c4ef92c660864e82fbe2f5fbe?narHash=sha256-yqHBL2wYGwjGL2GUF2w3tofWl8qO9tZEuI4wSqbCrtE%3D#python311Packages.pip",
-      "source": "nixpkg"
+      "source": "nixpkg",
+      "systems": {
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "path": "/tmp/containerbase/cache/nix/store/1iqgalc1hyp0wd2rij7fxd25425abm9y-python3.11-pip-25.0.1",
+              "default": true
+            },
+            {
+              "name": "man",
+              "path": "/tmp/containerbase/cache/nix/store/6spf25c7l91jx8fbzy2jbkwgfw0sqvw2-python3.11-pip-25.0.1-man",
+              "default": true
+            }
+          ]
+        }
+      }
     },
     "python311Packages.virtualenv": {
       "resolved": "github:NixOS/nixpkgs/23735a82a828372c4ef92c660864e82fbe2f5fbe?narHash=sha256-yqHBL2wYGwjGL2GUF2w3tofWl8qO9tZEuI4wSqbCrtE%3D#python311Packages.virtualenv",
-      "source": "nixpkg"
+      "source": "nixpkg",
+      "systems": {
+        "x86_64-linux": {
+          "outputs": [
+            {
+              "path": "/tmp/containerbase/cache/nix/store/pf2wfl4678wqzsys3mx9vzi2qv37k9fp-python3.11-virtualenv-20.33.1",
+              "default": true
+            }
+          ]
+        }
+      }
     },
     "python@3.11": {
       "last_modified": "2025-11-23T21:50:36Z",
