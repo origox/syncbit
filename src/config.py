@@ -78,6 +78,23 @@ class Config:
     # Backfill settings
     BACKFILL_START_DATE: str = os.getenv("BACKFILL_START_DATE", "")  # Format: YYYY-MM-DD
 
+    # Intraday data collection settings
+    ENABLE_INTRADAY_COLLECTION: bool = (
+        os.getenv("ENABLE_INTRADAY_COLLECTION", "false").lower() == "true"
+    )
+    INTRADAY_DETAIL_LEVEL: str = os.getenv("INTRADAY_DETAIL_LEVEL", "5min")  # 1min, 5min, 15min
+    INTRADAY_HEART_RATE_DETAIL: str = os.getenv(
+        "INTRADAY_HEART_RATE_DETAIL", "1min"
+    )  # 1sec, 1min, 5min, 15min
+    INTRADAY_RESOURCES: list[str] = [
+        r.strip()
+        for r in os.getenv("INTRADAY_RESOURCES", "steps,calories,distance,heart_rate").split(",")
+    ]
+    ENABLE_INTRADAY_BACKFILL: bool = (
+        os.getenv("ENABLE_INTRADAY_BACKFILL", "false").lower() == "true"
+    )
+    INTRADAY_BACKFILL_DAYS: int = int(os.getenv("INTRADAY_BACKFILL_DAYS", "30"))
+
     # User identification
     FITBIT_USER_ID: str = os.getenv("FITBIT_USER_ID", "default")
 

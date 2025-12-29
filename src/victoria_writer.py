@@ -183,6 +183,62 @@ class VictoriaMetricsWriter:
                 logger.error(f"Response: {e.response.text}")
             return False
 
+    def write_intraday_data(self, data: dict) -> bool:
+        """Write intraday Fitbit data to Victoria Metrics.
+
+        Args:
+            data: Intraday data from Fitbit collector
+
+        Returns:
+            True if successful
+        """
+        if not data or not data.get("resources"):
+            logger.debug("No intraday data to write")
+            return True  # Nothing to write is success
+
+        date_str = data["date"]
+        base_date = datetime.strptime(date_str, "%Y-%m-%d")
+        metrics = []
+
+        for resource, dataset in data["resources"].items():
+            dataset_points = dataset.get("dataset", [])
+
+            if not dataset_points:
+                logger.warning(f"No intraday data for {resource} on {date_str}")
+                continue
+
+            # Format metric name
+            metric_name = f"fitbit_{resource}_intraday"
+
+            # Process each time point
+            for point in dataset_points:
+                time_str = point["time"]  # Format: "HH:MM:SS"
+                value = point["value"]
+
+                # Parse time and create full timestamp
+                try:
+                    hour, minute, second = map(int, time_str.split(":"))
+                    point_datetime = base_date.replace(hour=hour, minute=minute, second=second)
+                    timestamp = int(point_datetime.timestamp())
+
+                    # Add metric
+                    metrics.append(self._format_metric(metric_name, value, timestamp))
+                except (ValueError, KeyError) as e:
+                    logger.error(f"Error parsing time point {time_str} for {resource}: {e}")
+                    continue
+
+        # Send all metrics in batch
+        if not metrics:
+            logger.warning(f"No intraday metrics to write for {date_str}")
+            return True
+
+        success = self._send_metrics(metrics)
+
+        if success:
+            logger.info(f"Successfully wrote {len(metrics)} intraday metrics for {date_str}")
+
+        return success
+
     def test_connection(self) -> bool:
         """Test connection to Victoria Metrics.
 
