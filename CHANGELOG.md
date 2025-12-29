@@ -1,3 +1,10 @@
+## [3.2.0](https://github.com/origox/syncbit/compare/v3.1.0...v3.2.0) (2025-12-29)
+
+
+### Features
+
+* **helm:** add intraday data collection configuration ([9abee69](https://github.com/origox/syncbit/commit/9abee6910c659ffd4d653f15cd9efa13ea8cd777)), closes [#38](https://github.com/origox/syncbit/issues/38)
+
 ## [3.1.0](https://github.com/origox/syncbit/compare/v3.0.0...v3.1.0) (2025-12-29)
 
 
