@@ -1,3 +1,22 @@
+## [2.0.0](https://github.com/origox/syncbit/compare/v1.6.2...v2.0.0) (2025-12-29)
+
+
+### ⚠ BREAKING CHANGES
+
+* **deps:** Update dependency docker-client ( 20.10.2 → 29.1.2 ) (#36)
+* **github-action:** Update action actions/upload-artifact ( v4 → v6 ) (#35)
+* **github-action:** Update action actions/setup-node ( v4 → v6 ) (#34)
+
+### Features
+
+* **deps:** Update dependency docker-client ( 20.10.2 → 29.1.2 ) ([#36](https://github.com/origox/syncbit/issues/36)) ([ff394de](https://github.com/origox/syncbit/commit/ff394def177329f44ca0442b4b1853e88b3f8249))
+
+
+### Continuous Integration
+
+* **github-action:** Update action actions/setup-node ( v4 → v6 ) ([#34](https://github.com/origox/syncbit/issues/34)) ([22a8121](https://github.com/origox/syncbit/commit/22a8121b2de205dbb4eb98dd3229574ed67d1788))
+* **github-action:** Update action actions/upload-artifact ( v4 → v6 ) ([#35](https://github.com/origox/syncbit/issues/35)) ([b72bedc](https://github.com/origox/syncbit/commit/b72bedcd2043af76faff6edb49ea6139cb6dd75f))
+
 ## [1.6.2](https://github.com/origox/syncbit/compare/v1.6.1...v1.6.2) (2025-12-29)
 
 
