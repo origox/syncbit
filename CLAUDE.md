@@ -8,9 +8,11 @@ SyncBit is a Python service that syncs Fitbit health data to Victoria Metrics. I
 
 **Key Characteristics:**
 - Long-running scheduler process (not one-shot script)
-- Fitbit API has strict rate limits (150 req/hour, 30s delays between requests)
+- Fitbit API has strict rate limits (150 req/hour, requires 5-30s delays between requests)
 - Dual-mode secret loading: `/run/secrets/*` files (K8s) OR environment variables (local)
 - State persistence via JSON files for resumable backfill
+- Comprehensive health metrics collection for Fitbit Charge 6
+- Configurable metric collection to optimize API usage
 
 ## Development Commands
 
@@ -93,19 +95,24 @@ ruff check --fix src tests main.py
 **src/fitbit_collector.py** - Fetches data from Fitbit API
 - Rate limit handling: raises `RateLimitError` with `retry_after` from API header
 - Uses user ID `-` (means authenticated user, avoids extra API call)
-- Two API calls per day: activity summary + heart rate data
-- Max 3 retries per request with 5-second delays
+- Comprehensive data collection: activity, heart rate, sleep, SpO2, breathing rate, HRV, cardio fitness, temperature, device info
+- 8-10 API calls per day (configurable via metric toggles)
+- 5-second delays between metrics, max 3 retries per request
+- 404 handling for optional metrics (graceful degradation)
 
 **src/scheduler.py** - Orchestrates backfill and periodic sync
 - Uses APScheduler's `BlockingScheduler`
-- Backfill: processes 10-day batches with 30s delays between dates
+- Backfill: processes 10-day batches with 30s delays between dates, includes all historical metrics
 - Rate limit strategy: stops after 3 consecutive 429s, preserves progress
-- Scheduled sync: every 15 minutes, fetches yesterday's complete data
+- Scheduled sync: every 15 minutes, fetches yesterday's complete data + optionally today's current data
+- Device info collection: once per sync cycle (not per day)
 
 **src/victoria_writer.py** - Writes metrics to Victoria Metrics
 - Prometheus exposition format with millisecond timestamps
 - Basic auth for Victoria Metrics endpoint
 - Batch writes to reduce HTTP requests
+- Comprehensive metric formatting: sleep, SpO2, breathing rate, HRV, cardio fitness, temperature, device info
+- Labels: `user`, `device`, plus context-specific labels (zone, stage, device_id, device_type)
 
 **src/sync_state.py** - Progress tracking for resumable backfill
 - JSON file: `data/sync_state.json`
@@ -166,9 +173,10 @@ def refresh_access_token(self):
 
 **Fitbit API Rate Limits:**
 - 150 requests/hour per user = ~1 request per 24 seconds
-- Implementation uses 30-second delays for safety margin
-- Backfill of 120 days takes ~1 hour with 30s delays
-- Each day requires 2 API calls (activity + heart rate)
+- Implementation uses 30-second delays between dates, 5-second delays between metrics
+- Backfill of 120 days with all metrics (~10 calls/day) takes ~8 hours
+- Each day requires 8-10 API calls (activity, heart rate, sleep, SpO2, breathing, HRV, cardio, temp, optional device)
+- Metrics are individually toggleable to reduce API usage if needed
 
 **Token Expiry:**
 - Access tokens expire every 8 hours
@@ -176,9 +184,10 @@ def refresh_access_token(self):
 - Refresh token is long-lived but can be revoked (requires re-authorization)
 
 **Data Completeness:**
-- Yesterday's data is most reliable (complete day)
-- Today's data is incomplete (don't sync it)
-- Scheduled sync runs every 15 minutes but always fetches yesterday
+- Yesterday's data is most reliable (complete day, fully processed by Fitbit)
+- Today's data is incomplete but current (enabled by default via `INCLUDE_TODAY_DATA=true`)
+- Scheduled sync runs every 15 minutes, fetches yesterday + optionally today
+- Some metrics (sleep, SpO2, HRV) may return 404 if not yet available - handled gracefully
 
 ## Common Issues
 

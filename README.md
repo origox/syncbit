@@ -7,23 +7,44 @@ SyncBit automatically collects activity data from your Fitbit account (Fitbit Ch
 ## Features
 
 - 🔐 **OAuth2 Authentication** - Secure Fitbit authorization with automatic token refresh
-- 📊 **Comprehensive Metrics** - Collects steps, heart rate, activity minutes, calories, and more
-- 🔄 **Automatic Sync** - Runs every 15 minutes to keep data up-to-date
+- 📊 **Comprehensive Health Metrics** - Collects all Fitbit Charge 6 supported data
+- 🔄 **Current-Date Sync** - Optionally syncs today's data for real-time monitoring (enabled by default)
 - 📈 **Historical Backfill** - Automatically syncs historical data from your Fitbit account
 - 🐳 **Docker & Kubernetes Ready** - Alpine-based multi-stage build, non-root user
 - 🔒 **Secure Secret Management** - External Secrets Operator + 1Password integration for production
 - 🏥 **Health Monitoring** - Built-in health checks and structured logging
+- ⚙️ **Configurable Collection** - Enable/disable individual metrics to optimize API usage
 
 ## Collected Metrics
 
+### Activity Metrics
 - **Steps** (`fitbit_steps_total`)
 - **Distance** (`fitbit_distance_km`)
 - **Calories** (`fitbit_calories_total`)
-- **Active Minutes** (`fitbit_active_minutes`) - by activity type
-- **Floors** (`fitbit_floors_total`)
-- **Elevation** (`fitbit_elevation_meters`)
+- **Active Minutes** (`fitbit_active_minutes`) - by activity type (sedentary, lightly active, fairly active, very active)
+
+### Heart Metrics
 - **Resting Heart Rate** (`fitbit_resting_heart_rate_bpm`)
 - **Heart Rate Zones** (`fitbit_heart_rate_zone_minutes`, `fitbit_heart_rate_zone_calories`)
+- **Heart Rate Variability** (`fitbit_hrv_rmssd_ms`) - RMSSD values during sleep
+
+### Sleep Metrics
+- **Sleep Duration** (`fitbit_sleep_minutes_total`)
+- **Sleep Stages** (`fitbit_sleep_stage_minutes`) - deep, light, REM, wake
+
+### Respiratory Metrics
+- **Breathing Rate** (`fitbit_breathing_rate_bpm`) - breaths per minute during sleep
+- **SpO2** (`fitbit_spo2_avg_percent`, `fitbit_spo2_min_percent`, `fitbit_spo2_max_percent`) - blood oxygen saturation
+
+### Fitness & Temperature
+- **Cardio Fitness Score** (`fitbit_vo2_max`) - VO2 Max estimation
+- **Skin Temperature** (`fitbit_temp_skin_relative_celsius`) - nightly relative temperature variation
+
+### Device Information
+- **Battery Level** (`fitbit_device_battery_percent`)
+- **Last Sync** (`fitbit_device_last_sync_timestamp`)
+
+**Note:** Floors and elevation are NOT collected as Fitbit Charge 6 does not have an altimeter.
 
 ## Prerequisites
 
@@ -232,27 +253,70 @@ The application automatically detects the environment:
 
 ### Environment Variables
 
+#### Required Configuration
+
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `FITBIT_CLIENT_ID` | Fitbit OAuth Client ID | Required (env or /run/secrets/fitbit_client_id) |
 | `FITBIT_CLIENT_SECRET` | Fitbit OAuth Client Secret | Required (env or /run/secrets/fitbit_client_secret) |
 | `FITBIT_REDIRECT_URI` | OAuth redirect URI | `http://localhost:8080/callback` |
-| `VICTORIA_ENDPOINT` | Victoria Metrics import endpoint |
+| `VICTORIA_ENDPOINT` | Victoria Metrics import endpoint | Required (env or /run/secrets/victoria_endpoint) |
 | `VICTORIA_USER` | Victoria Metrics username | Required (env or /run/secrets/victoria_user) |
 | `VICTORIA_PASSWORD` | Victoria Metrics password | Required (env or /run/secrets/victoria_password) |
+
+#### General Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
 | `SYNC_INTERVAL_MINUTES` | Sync interval in minutes | `15` |
 | `DATA_DIR` | Data directory for tokens/state | `/app/data` |
 | `FITBIT_USER_ID` | User identifier for metric labels | `default` |
-| `LOG_LEVEL` | Logging level | `INFO` |
+| `LOG_LEVEL` | Logging level (DEBUG, INFO, WARNING, ERROR) | `INFO` |
+| `BACKFILL_START_DATE` | Start date for backfill (YYYY-MM-DD) | Auto-detect from profile |
+
+#### Sync Settings
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `INCLUDE_TODAY_DATA` | Sync today's data (incomplete but current) | `true` |
+
+#### Metric Collection Toggles
+
+All metrics enabled by default. Set to `false` to disable specific metrics:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `COLLECT_SLEEP` | Sleep data (stages, duration, efficiency) | `true` |
+| `COLLECT_SPO2` | Blood oxygen saturation levels | `true` |
+| `COLLECT_BREATHING_RATE` | Breathing rate during sleep | `true` |
+| `COLLECT_HRV` | Heart rate variability (RMSSD) | `true` |
+| `COLLECT_CARDIO_FITNESS` | Cardio fitness score (VO2 Max) | `true` |
+| `COLLECT_TEMPERATURE` | Skin temperature variation | `true` |
+| `COLLECT_DEVICE_INFO` | Device battery and sync status | `true` |
+
+#### Intraday Data Collection (Optional)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `ENABLE_INTRADAY_COLLECTION` | Enable intraday data collection | `false` |
+| `INTRADAY_DETAIL_LEVEL` | Detail level for activity data | `5min` (1min, 5min, 15min) |
+| `INTRADAY_HEART_RATE_DETAIL` | Detail level for heart rate | `1min` (1sec, 1min, 5min, 15min) |
+| `INTRADAY_RESOURCES` | Comma-separated resources to collect | `steps,calories,distance,heart_rate` |
+| `ENABLE_INTRADAY_BACKFILL` | Backfill intraday data | `false` |
+| `INTRADAY_BACKFILL_DAYS` | Days to backfill for intraday | `30` |
 
 ## How It Works
 
-1. **Authorization**: OAuth2 flow to obtain access and refresh tokens
+1. **Authorization**: OAuth2 flow to obtain access and refresh tokens with comprehensive scopes
 2. **Token Management**: Automatically refreshes tokens every 8 hours
-3. **Backfill**: On first run, syncs historical data from Fitbit
-4. **Scheduled Sync**: Collects yesterday's complete data every 15 minutes
-5. **Metrics Export**: Converts Fitbit data to Prometheus format
+3. **Backfill**: On first run, syncs all available historical data from Fitbit
+4. **Scheduled Sync**:
+   - Collects yesterday's complete data (fully processed)
+   - Optionally collects today's data (incomplete but current, if `INCLUDE_TODAY_DATA=true`)
+   - Device info collected once per sync cycle
+5. **Metrics Export**: Converts Fitbit data to Prometheus format with labels
 6. **Victoria Metrics**: POSTs metrics with authentication
+7. **Rate Limiting**: 5-second delays between metrics, 30-second delays between dates
 
 ## Data Flow
 
