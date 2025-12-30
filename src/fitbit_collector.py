@@ -395,11 +395,25 @@ class FitbitCollector:
             Sleep data with stages and metrics
         """
         date_str = date.strftime("%Y-%m-%d")
-        # Note: Sleep API uses version 1.2, need to construct full URL
-        endpoint = f"/../1.2/user/-/sleep/date/{date_str}.json"
+
+        # Sleep API uses v1.2 instead of v1, so construct full URL manually
+        token = self.auth.get_valid_token()
+        headers = {"Authorization": f"Bearer {token}"}
+        url = f"https://api.fitbit.com/1.2/user/-/sleep/date/{date_str}.json"
 
         logger.debug(f"Fetching sleep data for {date_str}")
-        data = self._make_request(endpoint)
+
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:
+                retry_after = int(e.response.headers.get("Retry-After", "60"))
+                logger.warning(f"Rate limited, must wait {retry_after} seconds")
+                raise RateLimitError("Rate limited by Fitbit API", retry_after)
+            logger.error(f"API request failed: {e}")
+            raise
 
         sleep_data = data.get("sleep", [])
         summary = data.get("summary", {})
