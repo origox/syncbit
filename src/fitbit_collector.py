@@ -395,7 +395,8 @@ class FitbitCollector:
             Sleep data with stages and metrics
         """
         date_str = date.strftime("%Y-%m-%d")
-        endpoint = f"/1.2/user/-/sleep/date/{date_str}.json"
+        # Note: Sleep API uses version 1.2, need to construct full URL
+        endpoint = f"/../1.2/user/-/sleep/date/{date_str}.json"
 
         logger.debug(f"Fetching sleep data for {date_str}")
         data = self._make_request(endpoint)
@@ -418,7 +419,7 @@ class FitbitCollector:
             SpO2 data
         """
         date_str = date.strftime("%Y-%m-%d")
-        endpoint = f"/1/user/-/spo2/date/{date_str}.json"
+        endpoint = f"/spo2/date/{date_str}.json"
 
         logger.debug(f"Fetching SpO2 data for {date_str}")
         try:
@@ -440,7 +441,7 @@ class FitbitCollector:
             Breathing rate data
         """
         date_str = date.strftime("%Y-%m-%d")
-        endpoint = f"/1/user/-/br/date/{date_str}.json"
+        endpoint = f"/br/date/{date_str}.json"
 
         logger.debug(f"Fetching breathing rate for {date_str}")
         try:
@@ -462,7 +463,7 @@ class FitbitCollector:
             HRV data with RMSSD values
         """
         date_str = date.strftime("%Y-%m-%d")
-        endpoint = f"/1/user/-/hrv/date/{date_str}.json"
+        endpoint = f"/hrv/date/{date_str}.json"
 
         logger.debug(f"Fetching HRV data for {date_str}")
         try:
@@ -484,7 +485,7 @@ class FitbitCollector:
             Cardio fitness score data
         """
         date_str = date.strftime("%Y-%m-%d")
-        endpoint = f"/1/user/-/cardioscore/date/{date_str}.json"
+        endpoint = f"/cardioscore/date/{date_str}.json"
 
         logger.debug(f"Fetching cardio fitness score for {date_str}")
         try:
@@ -506,7 +507,7 @@ class FitbitCollector:
             Temperature data
         """
         date_str = date.strftime("%Y-%m-%d")
-        endpoint = f"/1/user/-/temp/skin/date/{date_str}.json"
+        endpoint = f"/temp/skin/date/{date_str}.json"
 
         logger.debug(f"Fetching temperature data for {date_str}")
         try:
@@ -524,7 +525,7 @@ class FitbitCollector:
         Returns:
             List of device information dictionaries
         """
-        endpoint = "/1/user/-/devices.json"
+        endpoint = "/devices.json"
 
         logger.debug("Fetching device information")
         try:
