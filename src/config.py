@@ -62,7 +62,17 @@ class Config:
     FITBIT_API_BASE_URL: str = "https://api.fitbit.com/1/user/-"
     FITBIT_AUTH_URL: str = "https://www.fitbit.com/oauth2/authorize"
     FITBIT_TOKEN_URL: str = "https://api.fitbit.com/oauth2/token"
-    FITBIT_SCOPES: list[str] = ["activity", "heartrate", "profile", "sleep"]
+    FITBIT_SCOPES: list[str] = [
+        "activity",
+        "heartrate",
+        "profile",
+        "sleep",
+        "respiratory_rate",
+        "oxygen_saturation",
+        "temperature",
+        "cardio_fitness",
+        "settings",
+    ]
 
     # Victoria Metrics settings (secrets - from mounted files or env vars)
     VICTORIA_ENDPOINT: str = _load_secret("victoria_endpoint")
@@ -77,6 +87,20 @@ class Config:
 
     # Backfill settings
     BACKFILL_START_DATE: str = os.getenv("BACKFILL_START_DATE", "")  # Format: YYYY-MM-DD
+
+    # Sync settings
+    INCLUDE_TODAY_DATA: bool = os.getenv("INCLUDE_TODAY_DATA", "true").lower() == "true"
+
+    # Metric collection toggles (all enabled by default for comprehensive collection)
+    COLLECT_SLEEP: bool = os.getenv("COLLECT_SLEEP", "true").lower() == "true"
+    COLLECT_SPO2: bool = os.getenv("COLLECT_SPO2", "true").lower() == "true"
+    COLLECT_BREATHING_RATE: bool = os.getenv("COLLECT_BREATHING_RATE", "true").lower() == "true"
+    COLLECT_HRV: bool = os.getenv("COLLECT_HRV", "true").lower() == "true"
+    COLLECT_CARDIO_FITNESS: bool = (
+        os.getenv("COLLECT_CARDIO_FITNESS", "true").lower() == "true"
+    )
+    COLLECT_TEMPERATURE: bool = os.getenv("COLLECT_TEMPERATURE", "true").lower() == "true"
+    COLLECT_DEVICE_INFO: bool = os.getenv("COLLECT_DEVICE_INFO", "true").lower() == "true"
 
     # Intraday data collection settings
     ENABLE_INTRADAY_COLLECTION: bool = (

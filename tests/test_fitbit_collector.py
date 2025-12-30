@@ -222,8 +222,16 @@ def test_get_steps(collector, sample_activity_response):
 
 
 @responses.activate
-def test_get_daily_data(collector, sample_activity_response, sample_heart_rate_response):
+def test_get_daily_data(collector, sample_activity_response, sample_heart_rate_response, monkeypatch):
     """Test fetching complete daily data."""
+    # Disable all optional metrics for this basic test
+    monkeypatch.setattr(Config, "COLLECT_SLEEP", False)
+    monkeypatch.setattr(Config, "COLLECT_SPO2", False)
+    monkeypatch.setattr(Config, "COLLECT_BREATHING_RATE", False)
+    monkeypatch.setattr(Config, "COLLECT_HRV", False)
+    monkeypatch.setattr(Config, "COLLECT_CARDIO_FITNESS", False)
+    monkeypatch.setattr(Config, "COLLECT_TEMPERATURE", False)
+
     test_date = datetime(2024, 1, 15)
 
     responses.add(
@@ -246,7 +254,9 @@ def test_get_daily_data(collector, sample_activity_response, sample_heart_rate_r
     assert result["steps"] == 10000
     assert result["calories"] == 2500
     assert result["distance"] == 8.5
-    assert result["floors"] == 15
+    # Floors and elevation no longer collected (Charge 6 has no altimeter)
+    assert "floors" not in result
+    assert "elevation" not in result
     assert result["active_minutes"]["sedentary"] == 600
     assert result["active_minutes"]["very_active"] == 60
     assert result["heart_rate"]["resting"] == 62
@@ -289,3 +299,191 @@ def test_get_daily_data_no_distance(collector, sample_heart_rate_response):
     # Distance should default to 0.0
     assert result["distance"] == 0.0
     assert result["steps"] == 5000
+
+
+@responses.activate
+def test_get_sleep_data(collector):
+    """Test fetching sleep data."""
+    test_date = datetime(2024, 1, 15)
+
+    sleep_response = {
+        "sleep": [
+            {
+                "dateOfSleep": "2024-01-15",
+                "duration": 28800000,
+                "efficiency": 92,
+                "stages": {
+                    "deep": 120,
+                    "light": 240,
+                    "rem": 90,
+                    "wake": 30,
+                },
+            }
+        ],
+        "summary": {
+            "totalMinutesAsleep": 450,
+            "totalTimeInBed": 480,
+            "stages": {"deep": 120, "light": 240, "rem": 90, "wake": 30},
+        },
+    }
+
+    responses.add(
+        responses.GET,
+        "https://api.fitbit.com/1.2/user/-/sleep/date/2024-01-15.json",
+        json=sleep_response,
+        status=200,
+    )
+
+    result = collector.get_sleep_data(test_date)
+
+    assert len(result["sleep"]) == 1
+    assert result["summary"]["totalMinutesAsleep"] == 450
+    assert result["summary"]["stages"]["deep"] == 120
+
+
+@responses.activate
+def test_get_spo2_data(collector):
+    """Test fetching SpO2 data."""
+    test_date = datetime(2024, 1, 15)
+
+    spo2_response = {"dateTime": "2024-01-15", "value": {"avg": 96.5, "min": 94, "max": 98}}
+
+    responses.add(
+        responses.GET,
+        f"{Config.FITBIT_API_BASE_URL}/1/user/-/spo2/date/2024-01-15.json",
+        json=spo2_response,
+        status=200,
+    )
+
+    result = collector.get_spo2_data(test_date)
+
+    assert result["value"]["avg"] == 96.5
+    assert result["value"]["min"] == 94
+    assert result["value"]["max"] == 98
+
+
+@responses.activate
+def test_get_spo2_data_not_found(collector):
+    """Test SpO2 data when not available returns empty dict."""
+    test_date = datetime(2024, 1, 15)
+
+    responses.add(
+        responses.GET,
+        f"{Config.FITBIT_API_BASE_URL}/1/user/-/spo2/date/2024-01-15.json",
+        json={"errors": [{"errorType": "not_found"}]},
+        status=404,
+    )
+
+    result = collector.get_spo2_data(test_date)
+
+    assert result == {}
+
+
+@responses.activate
+def test_get_breathing_rate(collector):
+    """Test fetching breathing rate data."""
+    test_date = datetime(2024, 1, 15)
+
+    br_response = {"br": [{"dateTime": "2024-01-15", "value": {"breathingRate": 15.5}}]}
+
+    responses.add(
+        responses.GET,
+        f"{Config.FITBIT_API_BASE_URL}/1/user/-/br/date/2024-01-15.json",
+        json=br_response,
+        status=200,
+    )
+
+    result = collector.get_breathing_rate(test_date)
+
+    assert len(result) == 1
+    assert result[0]["value"]["breathingRate"] == 15.5
+
+
+@responses.activate
+def test_get_hrv_data(collector):
+    """Test fetching HRV data."""
+    test_date = datetime(2024, 1, 15)
+
+    hrv_response = {"hrv": [{"dateTime": "2024-01-15", "value": {"rmssd": 45.2}}]}
+
+    responses.add(
+        responses.GET,
+        f"{Config.FITBIT_API_BASE_URL}/1/user/-/hrv/date/2024-01-15.json",
+        json=hrv_response,
+        status=200,
+    )
+
+    result = collector.get_hrv_data(test_date)
+
+    assert len(result) == 1
+    assert result[0]["value"]["rmssd"] == 45.2
+
+
+@responses.activate
+def test_get_cardio_fitness_score(collector):
+    """Test fetching cardio fitness score."""
+    test_date = datetime(2024, 1, 15)
+
+    cf_response = {"cardioScore": [{"dateTime": "2024-01-15", "vo2Max": "45-49"}]}
+
+    responses.add(
+        responses.GET,
+        f"{Config.FITBIT_API_BASE_URL}/1/user/-/cardioscore/date/2024-01-15.json",
+        json=cf_response,
+        status=200,
+    )
+
+    result = collector.get_cardio_fitness_score(test_date)
+
+    assert len(result) == 1
+    assert result[0]["vo2Max"] == "45-49"
+
+
+@responses.activate
+def test_get_temperature_data(collector):
+    """Test fetching temperature data."""
+    test_date = datetime(2024, 1, 15)
+
+    temp_response = {
+        "tempSkin": [{"dateTime": "2024-01-15", "value": {"nightlyRelative": 0.2}}]
+    }
+
+    responses.add(
+        responses.GET,
+        f"{Config.FITBIT_API_BASE_URL}/1/user/-/temp/skin/date/2024-01-15.json",
+        json=temp_response,
+        status=200,
+    )
+
+    result = collector.get_temperature_data(test_date)
+
+    assert len(result) == 1
+    assert result[0]["value"]["nightlyRelative"] == 0.2
+
+
+@responses.activate
+def test_get_device_info(collector):
+    """Test fetching device information."""
+    device_response = [
+        {
+            "id": "12345",
+            "deviceVersion": "Charge 6",
+            "battery": "High",
+            "lastSyncTime": "2024-01-15T10:30:00.000Z",
+            "type": "TRACKER",
+        }
+    ]
+
+    responses.add(
+        responses.GET,
+        f"{Config.FITBIT_API_BASE_URL}/1/user/-/devices.json",
+        json=device_response,
+        status=200,
+    )
+
+    result = collector.get_device_info()
+
+    assert len(result) == 1
+    assert result[0]["id"] == "12345"
+    assert result[0]["deviceVersion"] == "Charge 6"
+    assert result[0]["battery"] == "High"

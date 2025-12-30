@@ -31,44 +31,65 @@ class SyncScheduler:
         """Perform data synchronization."""
         logger.info("Starting data synchronization...")
 
-        max_retries = 2
-        retry_count = 0
-
-        while retry_count <= max_retries:
+        # Collect device info once per sync cycle
+        if Config.COLLECT_DEVICE_INFO:
             try:
-                # Get yesterday's data (most recent complete day)
-                yesterday = datetime.now() - timedelta(days=1)
-
-                # Collect data
-                data = self.collector.get_daily_data(yesterday)
-
-                # Write to Victoria Metrics
-                success = self.writer.write_daily_data(data)
-
-                if success:
-                    self.state.update_last_sync(data["date"])
-                    logger.info(f"Successfully synced data for {data['date']}")
-                else:
-                    logger.error("Failed to write data to Victoria Metrics")
-
-                return  # Success - exit
-
-            except RateLimitError as e:
-                retry_count += 1
-                if retry_count > max_retries:
-                    logger.error(f"Failed to sync after {max_retries} retries due to rate limiting")
-                    return
-
-                wait_time = e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
-                logger.warning(
-                    f"Rate limited during sync (retry {retry_count}/{max_retries}), "
-                    f"waiting {wait_time} seconds..."
-                )
-                time.sleep(wait_time)
-
+                device_info = self.collector.get_device_info()
+                if device_info:
+                    success = self.writer.write_device_info(device_info)
+                    if success:
+                        logger.info("Successfully synced device information")
             except Exception as e:
-                logger.error(f"Error during sync: {e}", exc_info=True)
-                return
+                logger.error(f"Error syncing device info: {e}")
+
+        # Determine which dates to sync
+        dates_to_sync = [datetime.now() - timedelta(days=1)]  # Yesterday (complete data)
+
+        if Config.INCLUDE_TODAY_DATA:
+            dates_to_sync.append(datetime.now())  # Today (incomplete but current)
+
+        max_retries = 2
+        for target_date in dates_to_sync:
+            retry_count = 0
+
+            while retry_count <= max_retries:
+                try:
+                    # Collect data
+                    data = self.collector.get_daily_data(target_date)
+
+                    # Write to Victoria Metrics
+                    success = self.writer.write_daily_data(data)
+
+                    if success:
+                        self.state.update_last_sync(data["date"])
+                        logger.info(f"Successfully synced data for {data['date']}")
+                    else:
+                        logger.error(f"Failed to write data to Victoria Metrics for {data['date']}")
+
+                    break  # Success - move to next date
+
+                except RateLimitError as e:
+                    retry_count += 1
+                    if retry_count > max_retries:
+                        logger.error(
+                            f"Failed to sync {target_date.strftime('%Y-%m-%d')} "
+                            f"after {max_retries} retries due to rate limiting"
+                        )
+                        break
+
+                    wait_time = e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
+                    logger.warning(
+                        f"Rate limited during sync (retry {retry_count}/{max_retries}), "
+                        f"waiting {wait_time} seconds..."
+                    )
+                    time.sleep(wait_time)
+
+                except Exception as e:
+                    logger.error(
+                        f"Error during sync for {target_date.strftime('%Y-%m-%d')}: {e}",
+                        exc_info=True,
+                    )
+                    break
 
     def backfill_data(self) -> None:
         """Backfill historical data if needed with incremental syncing."""

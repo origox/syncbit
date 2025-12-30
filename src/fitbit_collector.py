@@ -126,10 +126,11 @@ class FitbitCollector:
             date: Date to fetch data for
 
         Returns:
-            Combined daily data
+            Combined daily data including all enabled metrics
         """
         logger.info(f"Collecting data for {date.strftime('%Y-%m-%d')}")
 
+        # Core metrics (always collected)
         activity = self.get_activity_summary(date)
         heart_rate = self.get_heart_rate(date)
 
@@ -149,13 +150,60 @@ class FitbitCollector:
                 "fairly_active": activity.get("fairlyActiveMinutes", 0),
                 "very_active": activity.get("veryActiveMinutes", 0),
             },
-            "floors": activity.get("floors", 0),
-            "elevation": activity.get("elevation", 0),
             "heart_rate": {
                 "resting": heart_rate.get("restingHeartRate", 0),
                 "zones": heart_rate.get("heartRateZones", []),
             },
         }
+
+        # Optional metrics based on configuration
+        if Config.COLLECT_SLEEP:
+            try:
+                data["sleep"] = self.get_sleep_data(date)
+                time.sleep(5)  # Rate limit delay
+            except Exception as e:
+                logger.error(f"Error collecting sleep data: {e}")
+                data["sleep"] = {}
+
+        if Config.COLLECT_SPO2:
+            try:
+                data["spo2"] = self.get_spo2_data(date)
+                time.sleep(5)  # Rate limit delay
+            except Exception as e:
+                logger.error(f"Error collecting SpO2 data: {e}")
+                data["spo2"] = {}
+
+        if Config.COLLECT_BREATHING_RATE:
+            try:
+                data["breathing_rate"] = self.get_breathing_rate(date)
+                time.sleep(5)  # Rate limit delay
+            except Exception as e:
+                logger.error(f"Error collecting breathing rate: {e}")
+                data["breathing_rate"] = []
+
+        if Config.COLLECT_HRV:
+            try:
+                data["hrv"] = self.get_hrv_data(date)
+                time.sleep(5)  # Rate limit delay
+            except Exception as e:
+                logger.error(f"Error collecting HRV data: {e}")
+                data["hrv"] = []
+
+        if Config.COLLECT_CARDIO_FITNESS:
+            try:
+                data["cardio_fitness"] = self.get_cardio_fitness_score(date)
+                time.sleep(5)  # Rate limit delay
+            except Exception as e:
+                logger.error(f"Error collecting cardio fitness: {e}")
+                data["cardio_fitness"] = []
+
+        if Config.COLLECT_TEMPERATURE:
+            try:
+                data["temperature"] = self.get_temperature_data(date)
+                time.sleep(5)  # Rate limit delay
+            except Exception as e:
+                logger.error(f"Error collecting temperature data: {e}")
+                data["temperature"] = []
 
         return data
 
@@ -336,3 +384,152 @@ class FitbitCollector:
                 intraday_data["resources"][resource] = {}
 
         return intraday_data
+
+    def get_sleep_data(self, date: datetime) -> dict:
+        """Get sleep data including stages, duration, and efficiency.
+
+        Args:
+            date: Date to fetch data for
+
+        Returns:
+            Sleep data with stages and metrics
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/1.2/user/-/sleep/date/{date_str}.json"
+
+        logger.debug(f"Fetching sleep data for {date_str}")
+        data = self._make_request(endpoint)
+
+        sleep_data = data.get("sleep", [])
+        summary = data.get("summary", {})
+
+        return {
+            "sleep": sleep_data,
+            "summary": summary,
+        }
+
+    def get_spo2_data(self, date: datetime) -> dict:
+        """Get SpO2 (blood oxygen saturation) data.
+
+        Args:
+            date: Date to fetch data for
+
+        Returns:
+            SpO2 data
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/1/user/-/spo2/date/{date_str}.json"
+
+        logger.debug(f"Fetching SpO2 data for {date_str}")
+        try:
+            data = self._make_request(endpoint)
+            return data
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.debug(f"No SpO2 data available for {date_str}")
+                return {}
+            raise
+
+    def get_breathing_rate(self, date: datetime) -> dict:
+        """Get breathing rate data.
+
+        Args:
+            date: Date to fetch data for
+
+        Returns:
+            Breathing rate data
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/1/user/-/br/date/{date_str}.json"
+
+        logger.debug(f"Fetching breathing rate for {date_str}")
+        try:
+            data = self._make_request(endpoint)
+            return data.get("br", [])
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.debug(f"No breathing rate data available for {date_str}")
+                return []
+            raise
+
+    def get_hrv_data(self, date: datetime) -> dict:
+        """Get heart rate variability data.
+
+        Args:
+            date: Date to fetch data for
+
+        Returns:
+            HRV data with RMSSD values
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/1/user/-/hrv/date/{date_str}.json"
+
+        logger.debug(f"Fetching HRV data for {date_str}")
+        try:
+            data = self._make_request(endpoint)
+            return data.get("hrv", [])
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.debug(f"No HRV data available for {date_str}")
+                return []
+            raise
+
+    def get_cardio_fitness_score(self, date: datetime) -> dict:
+        """Get cardio fitness (VO2 Max) score.
+
+        Args:
+            date: Date to fetch data for
+
+        Returns:
+            Cardio fitness score data
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/1/user/-/cardioscore/date/{date_str}.json"
+
+        logger.debug(f"Fetching cardio fitness score for {date_str}")
+        try:
+            data = self._make_request(endpoint)
+            return data.get("cardioScore", [])
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.debug(f"No cardio fitness data available for {date_str}")
+                return []
+            raise
+
+    def get_temperature_data(self, date: datetime) -> dict:
+        """Get skin temperature variation data.
+
+        Args:
+            date: Date to fetch data for
+
+        Returns:
+            Temperature data
+        """
+        date_str = date.strftime("%Y-%m-%d")
+        endpoint = f"/1/user/-/temp/skin/date/{date_str}.json"
+
+        logger.debug(f"Fetching temperature data for {date_str}")
+        try:
+            data = self._make_request(endpoint)
+            return data.get("tempSkin", [])
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 404:
+                logger.debug(f"No temperature data available for {date_str}")
+                return []
+            raise
+
+    def get_device_info(self) -> list[dict]:
+        """Get device information including battery, firmware, type, and last sync.
+
+        Returns:
+            List of device information dictionaries
+        """
+        endpoint = "/1/user/-/devices.json"
+
+        logger.debug("Fetching device information")
+        try:
+            data = self._make_request(endpoint)
+            return data if isinstance(data, list) else []
+        except Exception as e:
+            logger.error(f"Error fetching device info: {e}")
+            return []
