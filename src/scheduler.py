@@ -31,6 +31,27 @@ class SyncScheduler:
         """Perform data synchronization."""
         logger.info("Starting data synchronization...")
 
+        # Check if there's a gap that needs backfilling first
+        last_synced = self.state.get_last_successful_date()
+        yesterday = datetime.now() - timedelta(days=1)
+
+        if last_synced:
+            last_sync_date = datetime.strptime(last_synced, "%Y-%m-%d")
+            # If there's a gap (last sync is before yesterday), don't update state
+            # Regular sync should only update state when continuous
+            if last_sync_date < yesterday.replace(hour=0, minute=0, second=0, microsecond=0):
+                gap_days = (yesterday - last_sync_date).days
+                logger.warning(
+                    f"Gap detected: last_successful_date={last_synced}, yesterday={yesterday.strftime('%Y-%m-%d')}. "
+                    f"Missing {gap_days} days. Regular sync will NOT update state until backfill completes."
+                )
+                # Set flag to skip state updates
+                skip_state_update = True
+            else:
+                skip_state_update = False
+        else:
+            skip_state_update = False
+
         # Collect device info once per sync cycle
         if Config.COLLECT_DEVICE_INFO:
             try:
@@ -71,10 +92,15 @@ class SyncScheduler:
 
                     if success:
                         # Only update state for complete days (yesterday or earlier)
-                        # Don't update state for today's incomplete data
-                        if is_complete_day:
+                        # AND only if there's no gap
+                        if is_complete_day and not skip_state_update:
                             self.state.update_last_sync(data["date"])
                             logger.info(f"Successfully synced data for {data['date']}")
+                        elif is_complete_day and skip_state_update:
+                            logger.info(
+                                f"Successfully synced data for {data['date']} "
+                                f"(state NOT updated due to gap)"
+                            )
                         else:
                             logger.info(
                                 f"Successfully synced incomplete data for {data['date']} (today)"
