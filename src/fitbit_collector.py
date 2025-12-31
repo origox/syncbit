@@ -62,9 +62,16 @@ class FitbitCollector:
             return response.json()
         except requests.exceptions.HTTPError as e:
             if e.response.status_code == 429:
-                # Rate limited - extract retry time from header
+                # Rate limited - extract retry time and quota info from headers
                 retry_after = int(e.response.headers.get("Retry-After", "60"))
-                logger.warning(f"Rate limited, must wait {retry_after} seconds")
+                limit = e.response.headers.get("Fitbit-Rate-Limit-Limit", "unknown")
+                remaining = e.response.headers.get("Fitbit-Rate-Limit-Remaining", "unknown")
+                reset = e.response.headers.get("Fitbit-Rate-Limit-Reset", "unknown")
+
+                logger.warning(
+                    f"Rate limited: Retry-After={retry_after}s, "
+                    f"Limit={limit}, Remaining={remaining}, Reset={reset}"
+                )
                 raise RateLimitError("Rate limited by Fitbit API", retry_after)
             logger.error(f"API request failed: {e}")
             raise
@@ -161,6 +168,8 @@ class FitbitCollector:
             try:
                 data["sleep"] = self.get_sleep_data(date)
                 time.sleep(5)  # Rate limit delay
+            except RateLimitError:
+                raise  # Re-raise rate limit errors to be handled by scheduler
             except Exception as e:
                 logger.error(f"Error collecting sleep data: {e}")
                 data["sleep"] = {}
@@ -169,6 +178,8 @@ class FitbitCollector:
             try:
                 data["spo2"] = self.get_spo2_data(date)
                 time.sleep(5)  # Rate limit delay
+            except RateLimitError:
+                raise  # Re-raise rate limit errors to be handled by scheduler
             except Exception as e:
                 logger.error(f"Error collecting SpO2 data: {e}")
                 data["spo2"] = {}
@@ -177,6 +188,8 @@ class FitbitCollector:
             try:
                 data["breathing_rate"] = self.get_breathing_rate(date)
                 time.sleep(5)  # Rate limit delay
+            except RateLimitError:
+                raise  # Re-raise rate limit errors to be handled by scheduler
             except Exception as e:
                 logger.error(f"Error collecting breathing rate: {e}")
                 data["breathing_rate"] = []
@@ -185,6 +198,8 @@ class FitbitCollector:
             try:
                 data["hrv"] = self.get_hrv_data(date)
                 time.sleep(5)  # Rate limit delay
+            except RateLimitError:
+                raise  # Re-raise rate limit errors to be handled by scheduler
             except Exception as e:
                 logger.error(f"Error collecting HRV data: {e}")
                 data["hrv"] = []
@@ -193,6 +208,8 @@ class FitbitCollector:
             try:
                 data["cardio_fitness"] = self.get_cardio_fitness_score(date)
                 time.sleep(5)  # Rate limit delay
+            except RateLimitError:
+                raise  # Re-raise rate limit errors to be handled by scheduler
             except Exception as e:
                 logger.error(f"Error collecting cardio fitness: {e}")
                 data["cardio_fitness"] = []
@@ -201,6 +218,8 @@ class FitbitCollector:
             try:
                 data["temperature"] = self.get_temperature_data(date)
                 time.sleep(5)  # Rate limit delay
+            except RateLimitError:
+                raise  # Re-raise rate limit errors to be handled by scheduler
             except Exception as e:
                 logger.error(f"Error collecting temperature data: {e}")
                 data["temperature"] = []
@@ -545,6 +564,8 @@ class FitbitCollector:
         try:
             data = self._make_request(endpoint)
             return data if isinstance(data, list) else []
+        except RateLimitError:
+            raise  # Re-raise rate limit errors to be handled by scheduler
         except Exception as e:
             logger.error(f"Error fetching device info: {e}")
             return []

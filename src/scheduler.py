@@ -39,6 +39,12 @@ class SyncScheduler:
                     success = self.writer.write_device_info(device_info)
                     if success:
                         logger.info("Successfully synced device information")
+            except RateLimitError as e:
+                wait_time = e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
+                logger.warning(
+                    f"Rate limited while collecting device info, waiting {wait_time} seconds..."
+                )
+                time.sleep(wait_time)
             except Exception as e:
                 logger.error(f"Error syncing device info: {e}")
 
@@ -51,6 +57,9 @@ class SyncScheduler:
         max_retries = 2
         for target_date in dates_to_sync:
             retry_count = 0
+            is_complete_day = (
+                target_date.date() < datetime.now().date()
+            )  # Only yesterday or earlier is complete
 
             while retry_count <= max_retries:
                 try:
@@ -61,8 +70,15 @@ class SyncScheduler:
                     success = self.writer.write_daily_data(data)
 
                     if success:
-                        self.state.update_last_sync(data["date"])
-                        logger.info(f"Successfully synced data for {data['date']}")
+                        # Only update state for complete days (yesterday or earlier)
+                        # Don't update state for today's incomplete data
+                        if is_complete_day:
+                            self.state.update_last_sync(data["date"])
+                            logger.info(f"Successfully synced data for {data['date']}")
+                        else:
+                            logger.info(
+                                f"Successfully synced incomplete data for {data['date']} (today)"
+                            )
                     else:
                         logger.error(f"Failed to write data to Victoria Metrics for {data['date']}")
 
@@ -99,10 +115,35 @@ class SyncScheduler:
             # Determine start date for backfill
             last_synced = self.state.get_last_successful_date()
 
+            # End at yesterday (most recent complete day)
+            end_date = datetime.now() - timedelta(days=1)
+
             if last_synced:
-                # Continue from where we left off
-                start_date = datetime.strptime(last_synced, "%Y-%m-%d") + timedelta(days=1)
-                logger.info(f"Continuing backfill from {start_date.strftime('%Y-%m-%d')}")
+                # Check if we need to fill a gap (app was down)
+                last_sync_date = datetime.strptime(last_synced, "%Y-%m-%d")
+
+                # If last sync was yesterday or today, no gap to fill
+                if last_sync_date >= end_date:
+                    logger.info(f"Last sync ({last_synced}) is current, no gap to fill")
+                    # Still check for historical backfill if configured
+                    if Config.BACKFILL_START_DATE:
+                        start_date = datetime.strptime(Config.BACKFILL_START_DATE, "%Y-%m-%d")
+                        if start_date < last_sync_date:
+                            logger.info(
+                                f"Starting historical backfill from {start_date.strftime('%Y-%m-%d')} "
+                                f"to {(last_sync_date - timedelta(days=1)).strftime('%Y-%m-%d')}"
+                            )
+                            self._backfill_with_incremental_sync(
+                                start_date, last_sync_date - timedelta(days=1)
+                            )
+                    return
+
+                # Gap detected - fill from day after last sync to yesterday
+                start_date = last_sync_date + timedelta(days=1)
+                logger.info(
+                    f"Gap detected: last sync was {last_synced}, filling gap from "
+                    f"{start_date.strftime('%Y-%m-%d')} to {end_date.strftime('%Y-%m-%d')}"
+                )
             elif Config.BACKFILL_START_DATE:
                 # Use configured backfill start date
                 start_date = datetime.strptime(Config.BACKFILL_START_DATE, "%Y-%m-%d")
@@ -119,9 +160,6 @@ class SyncScheduler:
                 logger.info(
                     f"Starting backfill from first available date {start_date.strftime('%Y-%m-%d')}"
                 )
-
-            # End at yesterday (most recent complete day)
-            end_date = datetime.now() - timedelta(days=1)
 
             if start_date > end_date:
                 logger.info("No data to backfill")
@@ -207,19 +245,63 @@ class SyncScheduler:
 
                     batch = []
 
+                # Wait for the retry period specified by API
+                base_wait_time = (
+                    e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
+                )
+
                 # Check if we should stop due to persistent rate limiting
                 if consecutive_rate_limits >= max_consecutive_rate_limits:
-                    logger.error(
-                        f"Stopping backfill after {consecutive_rate_limits} consecutive rate limits. "
-                        f"Progress saved at {self.state.get_last_successful_date()}. "
-                        f"Will resume on next run."
+                    # If we've hit the limit multiple times, we're likely at quota exhaustion
+                    # Wait longer before giving up (5 minutes = 300 seconds)
+                    extended_wait = 300
+                    logger.warning(
+                        f"Hit {consecutive_rate_limits} consecutive rate limits. "
+                        f"Quota likely exhausted. Waiting {extended_wait}s before final retry..."
                     )
-                    break
+                    time.sleep(extended_wait)
 
-                # Wait for the retry period specified by API
-                wait_time = e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
-                logger.info(f"Waiting {wait_time} seconds before retrying...")
-                time.sleep(wait_time)
+                    # Try one final time after extended wait
+                    try:
+                        logger.info(
+                            f"Final retry for {current_date.strftime('%Y-%m-%d')} after extended wait"
+                        )
+                        daily_data = self.collector.get_daily_data(current_date)
+                        batch.append(daily_data)
+                        consecutive_rate_limits = 0  # Reset on success
+
+                        # Write batch if needed
+                        if len(batch) >= batch_size or current_date == end_date:
+                            successful, failed = self.writer.write_multiple_days(batch)
+                            total_successful += successful
+                            total_failed += failed
+                            if batch:
+                                self.state.update_last_sync(batch[-1]["date"])
+                                logger.info(
+                                    f"Synced batch after extended wait: progress={batch[-1]['date']}"
+                                )
+                            batch = []
+
+                        # Move to next date
+                        current_date += timedelta(days=1)
+                        if current_date <= end_date:
+                            time.sleep(30)  # Rate limit delay
+
+                    except RateLimitError:
+                        logger.error(
+                            f"Still rate limited after {extended_wait}s wait. "
+                            f"Stopping backfill. Progress saved at {self.state.get_last_successful_date()}. "
+                            f"Will resume on next run."
+                        )
+                        break
+                    except Exception as e:
+                        logger.error(f"Error on final retry: {e}")
+                        current_date += timedelta(days=1)
+
+                    continue  # Continue to next iteration
+
+                logger.info(f"Waiting {base_wait_time} seconds before retrying...")
+                time.sleep(base_wait_time)
                 # Don't increment date - retry the same date
 
             except Exception as e:
