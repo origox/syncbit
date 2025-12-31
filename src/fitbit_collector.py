@@ -15,15 +15,25 @@ logger = logging.getLogger(__name__)
 class RateLimitError(Exception):
     """Exception raised when rate limited by Fitbit API."""
 
-    def __init__(self, message: str, retry_after: int):
-        """Initialize with retry time.
+    def __init__(
+        self,
+        message: str,
+        retry_after: int,
+        quota_reset: int | None = None,
+        remaining: int | None = None,
+    ):
+        """Initialize with retry time and quota info.
 
         Args:
             message: Error message
-            retry_after: Seconds to wait before retry
+            retry_after: Seconds to wait before retry (from Retry-After header)
+            quota_reset: Seconds until quota resets (from Fitbit-Rate-Limit-Reset header)
+            remaining: Remaining requests in quota (from Fitbit-Rate-Limit-Remaining header)
         """
         super().__init__(message)
         self.retry_after = retry_after
+        self.quota_reset = quota_reset
+        self.remaining = remaining
 
 
 class FitbitCollector:
@@ -65,14 +75,30 @@ class FitbitCollector:
                 # Rate limited - extract retry time and quota info from headers
                 retry_after = int(e.response.headers.get("Retry-After", "60"))
                 limit = e.response.headers.get("Fitbit-Rate-Limit-Limit", "unknown")
-                remaining = e.response.headers.get("Fitbit-Rate-Limit-Remaining", "unknown")
-                reset = e.response.headers.get("Fitbit-Rate-Limit-Reset", "unknown")
+                remaining_str = e.response.headers.get("Fitbit-Rate-Limit-Remaining", "unknown")
+                reset_str = e.response.headers.get("Fitbit-Rate-Limit-Reset", "unknown")
+
+                # Parse remaining and reset as integers
+                try:
+                    remaining = int(remaining_str)
+                except (ValueError, TypeError):
+                    remaining = None
+
+                try:
+                    quota_reset = int(reset_str)
+                except (ValueError, TypeError):
+                    quota_reset = None
 
                 logger.warning(
                     f"Rate limited: Retry-After={retry_after}s, "
-                    f"Limit={limit}, Remaining={remaining}, Reset={reset}"
+                    f"Limit={limit}, Remaining={remaining}, Reset={quota_reset}"
                 )
-                raise RateLimitError("Rate limited by Fitbit API", retry_after)
+                raise RateLimitError(
+                    "Rate limited by Fitbit API",
+                    retry_after,
+                    quota_reset=quota_reset,
+                    remaining=remaining,
+                )
             logger.error(f"API request failed: {e}")
             raise
 

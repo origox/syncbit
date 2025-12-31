@@ -245,21 +245,35 @@ class SyncScheduler:
 
                     batch = []
 
-                # Wait for the retry period specified by API
+                # Determine wait time based on quota status
                 base_wait_time = (
                     e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
                 )
 
                 # Check if we should stop due to persistent rate limiting
                 if consecutive_rate_limits >= max_consecutive_rate_limits:
-                    # If we've hit the limit multiple times, we're likely at quota exhaustion
-                    # Wait longer before giving up (5 minutes = 300 seconds)
-                    extended_wait = 300
-                    logger.warning(
-                        f"Hit {consecutive_rate_limits} consecutive rate limits. "
-                        f"Quota likely exhausted. Waiting {extended_wait}s before final retry..."
+                    # Check if quota is exhausted (remaining <= 0)
+                    quota_exhausted = (
+                        hasattr(e, "remaining") and e.remaining is not None and e.remaining <= 0
                     )
-                    time.sleep(extended_wait)
+
+                    if quota_exhausted and hasattr(e, "quota_reset") and e.quota_reset:
+                        # Use the exact quota reset time from API
+                        wait_time = e.quota_reset
+                        logger.warning(
+                            f"Hit {consecutive_rate_limits} consecutive rate limits. "
+                            f"Quota exhausted (remaining={e.remaining}). "
+                            f"Waiting {wait_time}s until quota resets..."
+                        )
+                    else:
+                        # Fall back to extended wait if no quota info available
+                        wait_time = 300
+                        logger.warning(
+                            f"Hit {consecutive_rate_limits} consecutive rate limits. "
+                            f"Waiting {wait_time}s before final retry..."
+                        )
+
+                    time.sleep(wait_time)
 
                     # Try one final time after extended wait
                     try:
@@ -289,7 +303,7 @@ class SyncScheduler:
 
                     except RateLimitError:
                         logger.error(
-                            f"Still rate limited after {extended_wait}s wait. "
+                            f"Still rate limited after {wait_time}s wait. "
                             f"Stopping backfill. Progress saved at {self.state.get_last_successful_date()}. "
                             f"Will resume on next run."
                         )
