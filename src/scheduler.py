@@ -37,16 +37,34 @@ class SyncScheduler:
 
         if last_synced:
             last_sync_date = datetime.strptime(last_synced, "%Y-%m-%d")
-            # If there's a gap (last sync is before yesterday), don't update state
-            # Regular sync should only update state when continuous
+            # If there's a gap (last sync is before yesterday), trigger backfill
             if last_sync_date < yesterday.replace(hour=0, minute=0, second=0, microsecond=0):
                 gap_days = (yesterday - last_sync_date).days
                 logger.warning(
                     f"Gap detected: last_successful_date={last_synced}, yesterday={yesterday.strftime('%Y-%m-%d')}. "
-                    f"Missing {gap_days} days. Regular sync will NOT update state until backfill completes."
+                    f"Missing {gap_days} days. Triggering backfill to fill gap..."
                 )
-                # Set flag to skip state updates
-                skip_state_update = True
+                # Run backfill to fill the gap
+                self.backfill_data()
+                # After backfill, reload state to check if gap is filled
+                last_synced = self.state.get_last_successful_date()
+                if last_synced:
+                    last_sync_date = datetime.strptime(last_synced, "%Y-%m-%d")
+                    if last_sync_date < yesterday.replace(
+                        hour=0, minute=0, second=0, microsecond=0
+                    ):
+                        # Gap still exists, skip state updates
+                        skip_state_update = True
+                        logger.info(
+                            f"Gap still exists after backfill (last_successful_date={last_synced}). "
+                            f"Will continue backfill on next sync cycle."
+                        )
+                    else:
+                        # Gap filled!
+                        skip_state_update = False
+                        logger.info("Gap filled! Regular sync will now update state.")
+                else:
+                    skip_state_update = False
             else:
                 skip_state_update = False
         else:
