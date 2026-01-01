@@ -674,6 +674,12 @@ class SyncScheduler:
 
         logger.info("Victoria Metrics connection successful")
 
+        # Log configuration for diagnostics
+        logger.info(f"DEBUG: ENABLE_INTRADAY_COLLECTION={Config.ENABLE_INTRADAY_COLLECTION}")
+        logger.info(f"DEBUG: ENABLE_INTRADAY_BACKFILL={Config.ENABLE_INTRADAY_BACKFILL}")
+        logger.info(f"DEBUG: BACKFILL_START_DATE={Config.BACKFILL_START_DATE}")
+        logger.info(f"DEBUG: INTRADAY_BACKFILL_DAYS={Config.INTRADAY_BACKFILL_DAYS}")
+
         # Perform initial backfill
         self.backfill_data()
 
@@ -682,6 +688,11 @@ class SyncScheduler:
             logger.info("Waiting 60 seconds before starting intraday backfill...")
             time.sleep(60)
             self.backfill_intraday_data()
+        else:
+            logger.info(
+                f"Intraday backfill skipped: ENABLE_INTRADAY_COLLECTION={Config.ENABLE_INTRADAY_COLLECTION}, "
+                f"ENABLE_INTRADAY_BACKFILL={Config.ENABLE_INTRADAY_BACKFILL}"
+            )
 
         # Wait a bit after backfill to avoid immediate rate limiting
         logger.info("Waiting 60 seconds before starting regular sync...")
