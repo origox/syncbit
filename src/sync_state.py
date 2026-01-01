@@ -20,6 +20,7 @@ class SyncState:
         self.state_file = state_file
         self.last_sync: datetime | None = None
         self.last_successful_date: str | None = None
+        self.last_intraday_backfill_date: str | None = None
 
         self._load_state()
 
@@ -34,10 +35,12 @@ class SyncState:
                     self.last_sync = datetime.fromisoformat(data["last_sync"])
 
                 self.last_successful_date = data.get("last_successful_date")
+                self.last_intraday_backfill_date = data.get("last_intraday_backfill_date")
 
                 logger.info(
                     f"Loaded sync state: last_sync={self.last_sync}, "
-                    f"last_successful_date={self.last_successful_date}"
+                    f"last_successful_date={self.last_successful_date}, "
+                    f"last_intraday_backfill_date={self.last_intraday_backfill_date}"
                 )
             except Exception as e:
                 logger.error(f"Error loading sync state: {e}")
@@ -47,6 +50,7 @@ class SyncState:
         data = {
             "last_sync": self.last_sync.isoformat() if self.last_sync else None,
             "last_successful_date": self.last_successful_date,
+            "last_intraday_backfill_date": self.last_intraday_backfill_date,
         }
 
         try:
@@ -77,3 +81,21 @@ class SyncState:
             Date string or None
         """
         return self.last_successful_date
+
+    def update_intraday_backfill(self, date_str: str) -> None:
+        """Update last intraday backfill date.
+
+        Args:
+            date_str: Date string in YYYY-MM-DD format
+        """
+        self.last_intraday_backfill_date = date_str
+        self._save_state()
+        logger.info(f"Updated intraday backfill state: {date_str}")
+
+    def get_last_intraday_backfill_date(self) -> str | None:
+        """Get last intraday backfill date.
+
+        Returns:
+            Date string or None
+        """
+        return self.last_intraday_backfill_date

@@ -418,6 +418,210 @@ class SyncScheduler:
 
         logger.info(f"Backfill complete: {total_successful} successful, {total_failed} failed")
 
+    def backfill_intraday_data(self) -> None:
+        """Backfill historical intraday data if enabled."""
+        if not Config.ENABLE_INTRADAY_COLLECTION or not Config.ENABLE_INTRADAY_BACKFILL:
+            return
+
+        logger.info("Checking for intraday data to backfill...")
+
+        try:
+            # Determine start date for intraday backfill
+            last_intraday_backfill = self.state.get_last_intraday_backfill_date()
+
+            # End at yesterday (most recent complete day)
+            end_date = datetime.now() - timedelta(days=1)
+
+            if last_intraday_backfill:
+                # Continue from where we left off
+                start_date = datetime.strptime(last_intraday_backfill, "%Y-%m-%d") + timedelta(
+                    days=1
+                )
+                logger.info(
+                    f"Resuming intraday backfill from {start_date.strftime('%Y-%m-%d')} "
+                    f"(last completed: {last_intraday_backfill})"
+                )
+            elif Config.INTRADAY_BACKFILL_DAYS > 0:
+                # Use configured number of days
+                start_date = datetime.now() - timedelta(days=Config.INTRADAY_BACKFILL_DAYS)
+                logger.info(
+                    f"Starting intraday backfill for last {Config.INTRADAY_BACKFILL_DAYS} days "
+                    f"from {start_date.strftime('%Y-%m-%d')}"
+                )
+            elif Config.BACKFILL_START_DATE:
+                # Use same start date as daily backfill
+                start_date = datetime.strptime(Config.BACKFILL_START_DATE, "%Y-%m-%d")
+                logger.info(
+                    f"Starting intraday backfill from configured date {start_date.strftime('%Y-%m-%d')}"
+                )
+            else:
+                # Default to last 30 days
+                start_date = datetime.now() - timedelta(days=30)
+                logger.info(
+                    f"Starting intraday backfill for last 30 days from {start_date.strftime('%Y-%m-%d')}"
+                )
+
+            if start_date > end_date:
+                logger.info("No intraday data to backfill")
+                return
+
+            logger.info(
+                f"Backfilling intraday data from {start_date.strftime('%Y-%m-%d')} "
+                f"to {end_date.strftime('%Y-%m-%d')}"
+            )
+
+            # Backfill intraday data incrementally
+            self._backfill_intraday_with_incremental_sync(start_date, end_date)
+
+        except Exception as e:
+            logger.error(f"Error during intraday backfill: {e}", exc_info=True)
+
+    def _backfill_intraday_with_incremental_sync(
+        self, start_date: datetime, end_date: datetime
+    ) -> None:
+        """Backfill intraday data with incremental syncing.
+
+        Args:
+            start_date: Start date for backfill
+            end_date: End date for backfill
+        """
+        total_successful = 0
+        total_failed = 0
+        current_date = start_date
+        consecutive_rate_limits = 0
+        max_consecutive_rate_limits = 3
+
+        while current_date <= end_date:
+            try:
+                # Fetch intraday data for one day
+                logger.info(f"Backfilling intraday data for {current_date.strftime('%Y-%m-%d')}")
+                intraday_data = self.collector.get_intraday_data(current_date)
+
+                if intraday_data and intraday_data.get("resources"):
+                    # Write to Victoria Metrics
+                    success = self.writer.write_intraday_data(intraday_data)
+
+                    if success:
+                        total_successful += 1
+                        # Update state to track progress
+                        self.state.update_intraday_backfill(intraday_data["date"])
+                        logger.info(
+                            f"Successfully backfilled intraday data for {intraday_data['date']}"
+                        )
+                    else:
+                        total_failed += 1
+                        logger.error(
+                            f"Failed to write intraday data for {current_date.strftime('%Y-%m-%d')}"
+                        )
+                else:
+                    logger.info(
+                        f"No intraday data available for {current_date.strftime('%Y-%m-%d')}"
+                    )
+                    # Still update state to avoid re-processing
+                    self.state.update_intraday_backfill(current_date.strftime("%Y-%m-%d"))
+
+                consecutive_rate_limits = 0  # Reset on success
+
+                # Move to next date
+                current_date += timedelta(days=1)
+
+                # Rate limit compliance: wait 30 seconds between requests
+                # Intraday data uses ~4 API calls per day (one per resource)
+                if current_date <= end_date:
+                    time.sleep(30)
+
+            except RateLimitError as e:
+                consecutive_rate_limits += 1
+                logger.warning(
+                    f"Rate limited on intraday {current_date.strftime('%Y-%m-%d')} "
+                    f"({consecutive_rate_limits}/{max_consecutive_rate_limits})"
+                )
+
+                # Determine wait time based on quota status
+                base_wait_time = (
+                    e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
+                )
+
+                # Check if we should stop due to persistent rate limiting
+                if consecutive_rate_limits >= max_consecutive_rate_limits:
+                    # Check if quota is exhausted
+                    quota_exhausted = (
+                        hasattr(e, "remaining") and e.remaining is not None and e.remaining <= 0
+                    )
+
+                    if quota_exhausted and hasattr(e, "quota_reset") and e.quota_reset:
+                        # Use exact quota reset time from API
+                        wait_time = e.quota_reset
+                        logger.warning(
+                            f"Hit {consecutive_rate_limits} consecutive rate limits on intraday backfill. "
+                            f"Quota exhausted (remaining={e.remaining}). "
+                            f"Waiting {wait_time}s until quota resets..."
+                        )
+                    else:
+                        # Fall back to extended wait
+                        wait_time = 300
+                        logger.warning(
+                            f"Hit {consecutive_rate_limits} consecutive rate limits on intraday backfill. "
+                            f"Waiting {wait_time}s before final retry..."
+                        )
+
+                    time.sleep(wait_time)
+
+                    # Try one final time after extended wait
+                    try:
+                        logger.info(
+                            f"Final retry for intraday {current_date.strftime('%Y-%m-%d')} after extended wait"
+                        )
+                        intraday_data = self.collector.get_intraday_data(current_date)
+
+                        if intraday_data and intraday_data.get("resources"):
+                            success = self.writer.write_intraday_data(intraday_data)
+                            if success:
+                                total_successful += 1
+                                self.state.update_intraday_backfill(intraday_data["date"])
+                                logger.info(
+                                    f"Successfully backfilled intraday after extended wait: {intraday_data['date']}"
+                                )
+                            else:
+                                total_failed += 1
+                        else:
+                            self.state.update_intraday_backfill(current_date.strftime("%Y-%m-%d"))
+
+                        consecutive_rate_limits = 0  # Reset on success
+                        current_date += timedelta(days=1)
+
+                        if current_date <= end_date:
+                            time.sleep(30)  # Rate limit delay
+
+                    except RateLimitError:
+                        logger.error(
+                            f"Still rate limited after {wait_time}s wait on intraday backfill. "
+                            f"Stopping backfill. Progress saved at {self.state.get_last_intraday_backfill_date()}. "
+                            f"Will resume on next run."
+                        )
+                        break
+                    except Exception as e:
+                        logger.error(f"Error on final retry for intraday: {e}")
+                        current_date += timedelta(days=1)
+
+                    continue  # Continue to next iteration
+
+                logger.info(f"Waiting {base_wait_time} seconds before retrying...")
+                time.sleep(base_wait_time)
+                # Don't increment date - retry the same date
+
+            except Exception as e:
+                logger.error(
+                    f"Error fetching intraday for {current_date.strftime('%Y-%m-%d')}: {e}"
+                )
+                total_failed += 1
+                # Move to next date to avoid getting stuck
+                current_date += timedelta(days=1)
+
+        logger.info(
+            f"Intraday backfill complete: {total_successful} successful, {total_failed} failed"
+        )
+
     def sync_intraday_data(self) -> None:
         """Perform intraday data synchronization."""
         if not Config.ENABLE_INTRADAY_COLLECTION:
@@ -472,6 +676,12 @@ class SyncScheduler:
 
         # Perform initial backfill
         self.backfill_data()
+
+        # Perform intraday backfill if enabled
+        if Config.ENABLE_INTRADAY_COLLECTION and Config.ENABLE_INTRADAY_BACKFILL:
+            logger.info("Waiting 60 seconds before starting intraday backfill...")
+            time.sleep(60)
+            self.backfill_intraday_data()
 
         # Wait a bit after backfill to avoid immediate rate limiting
         logger.info("Waiting 60 seconds before starting regular sync...")
