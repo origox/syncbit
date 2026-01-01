@@ -1,3 +1,10 @@
+## [3.4.0](https://github.com/origox/syncbit/compare/v3.3.2...v3.4.0) (2026-01-01)
+
+
+### Features
+
+* use exact battery level measurement ([09a2830](https://github.com/origox/syncbit/commit/09a283020e8404c49e0791e8a725796be88b590c))
+
 ## [3.3.2](https://github.com/origox/syncbit/compare/v3.3.1...v3.3.2) (2026-01-01)
 
 
