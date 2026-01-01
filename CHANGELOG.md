@@ -1,3 +1,10 @@
+## [3.3.1](https://github.com/origox/syncbit/compare/v3.3.0...v3.3.1) (2026-01-01)
+
+
+### Bug Fixes
+
+* update python tests ([2d9df59](https://github.com/origox/syncbit/commit/2d9df59e2669543ccc8c653630d52a0ba04797ab))
+
 ## [3.3.0](https://github.com/origox/syncbit/compare/v3.2.0...v3.3.0) (2026-01-01)
 
 
