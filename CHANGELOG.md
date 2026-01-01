@@ -1,3 +1,28 @@
+## [3.3.0](https://github.com/origox/syncbit/compare/v3.2.0...v3.3.0) (2026-01-01)
+
+
+### Features
+
+* add comprehensive Charge 6 data collection with current-date sync ([dd7b3bd](https://github.com/origox/syncbit/commit/dd7b3bd2f09bf3f1fad6fb63b63977a8cd2c4fb8)), closes [#41](https://github.com/origox/syncbit/issues/41)
+* implement intraday data backfill ([a5b4bbd](https://github.com/origox/syncbit/commit/a5b4bbd5b312a8022c7f9b1e80c796ae26c1af61))
+
+
+### Bug Fixes
+
+* correct API endpoint paths for new metrics ([49c985b](https://github.com/origox/syncbit/commit/49c985b2e1a6afed3f8a4c19a59ed0e8b089851d)), closes [#41](https://github.com/origox/syncbit/issues/41)
+* correct sleep API endpoint to use v1.2 ([75c21c9](https://github.com/origox/syncbit/commit/75c21c990c5009a9b004bb588a00a73595d0b999)), closes [#41](https://github.com/origox/syncbit/issues/41)
+* fix scheduler ([513667a](https://github.com/origox/syncbit/commit/513667aaaa3bf01fbe610c9ebba3a2e8c371b5ac))
+* improve rate limit handling and backfill gap detection ([223c352](https://github.com/origox/syncbit/commit/223c352fa9dd7a5d0949fe360eaf627db247798a))
+* prevent scheduled sync from blocking when quota exhausted ([d4c4cff](https://github.com/origox/syncbit/commit/d4c4cff923fbbc0bec9114888368cd5c16dd6d60))
+* prevent state advancement when gap exists in backfill ([b3f782e](https://github.com/origox/syncbit/commit/b3f782ee9c08361f6998879d95f28585d77acc7c))
+* trigger backfill automatically during scheduled sync when gap detected ([027e185](https://github.com/origox/syncbit/commit/027e185256500ba2f2e2b09474f8390dc6ad2d73))
+* use Fitbit API quota reset time for intelligent backfill waiting ([efe1b23](https://github.com/origox/syncbit/commit/efe1b23918b9a04181713b74b08956ec31f39a94))
+
+
+### Documentation
+
+* update documentation for Charge 6 comprehensive data collection ([f4d0b94](https://github.com/origox/syncbit/commit/f4d0b949137948c54761ff901eb9a6fccf44e940)), closes [#41](https://github.com/origox/syncbit/issues/41)
+
 ## [3.2.0](https://github.com/origox/syncbit/compare/v3.1.0...v3.2.0) (2025-12-29)
 
 
