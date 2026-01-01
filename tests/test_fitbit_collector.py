@@ -222,7 +222,9 @@ def test_get_steps(collector, sample_activity_response):
 
 
 @responses.activate
-def test_get_daily_data(collector, sample_activity_response, sample_heart_rate_response, monkeypatch):
+def test_get_daily_data(
+    collector, sample_activity_response, sample_heart_rate_response, monkeypatch
+):
     """Test fetching complete daily data."""
     # Disable all optional metrics for this basic test
     monkeypatch.setattr(Config, "COLLECT_SLEEP", False)
@@ -350,7 +352,7 @@ def test_get_spo2_data(collector):
 
     responses.add(
         responses.GET,
-        f"{Config.FITBIT_API_BASE_URL}/1/user/-/spo2/date/2024-01-15.json",
+        f"{Config.FITBIT_API_BASE_URL}/spo2/date/2024-01-15.json",
         json=spo2_response,
         status=200,
     )
@@ -369,7 +371,7 @@ def test_get_spo2_data_not_found(collector):
 
     responses.add(
         responses.GET,
-        f"{Config.FITBIT_API_BASE_URL}/1/user/-/spo2/date/2024-01-15.json",
+        f"{Config.FITBIT_API_BASE_URL}/spo2/date/2024-01-15.json",
         json={"errors": [{"errorType": "not_found"}]},
         status=404,
     )
@@ -388,7 +390,7 @@ def test_get_breathing_rate(collector):
 
     responses.add(
         responses.GET,
-        f"{Config.FITBIT_API_BASE_URL}/1/user/-/br/date/2024-01-15.json",
+        f"{Config.FITBIT_API_BASE_URL}/br/date/2024-01-15.json",
         json=br_response,
         status=200,
     )
@@ -408,7 +410,7 @@ def test_get_hrv_data(collector):
 
     responses.add(
         responses.GET,
-        f"{Config.FITBIT_API_BASE_URL}/1/user/-/hrv/date/2024-01-15.json",
+        f"{Config.FITBIT_API_BASE_URL}/hrv/date/2024-01-15.json",
         json=hrv_response,
         status=200,
     )
@@ -428,7 +430,7 @@ def test_get_cardio_fitness_score(collector):
 
     responses.add(
         responses.GET,
-        f"{Config.FITBIT_API_BASE_URL}/1/user/-/cardioscore/date/2024-01-15.json",
+        f"{Config.FITBIT_API_BASE_URL}/cardioscore/date/2024-01-15.json",
         json=cf_response,
         status=200,
     )
@@ -444,13 +446,11 @@ def test_get_temperature_data(collector):
     """Test fetching temperature data."""
     test_date = datetime(2024, 1, 15)
 
-    temp_response = {
-        "tempSkin": [{"dateTime": "2024-01-15", "value": {"nightlyRelative": 0.2}}]
-    }
+    temp_response = {"tempSkin": [{"dateTime": "2024-01-15", "value": {"nightlyRelative": 0.2}}]}
 
     responses.add(
         responses.GET,
-        f"{Config.FITBIT_API_BASE_URL}/1/user/-/temp/skin/date/2024-01-15.json",
+        f"{Config.FITBIT_API_BASE_URL}/temp/skin/date/2024-01-15.json",
         json=temp_response,
         status=200,
     )
@@ -476,7 +476,7 @@ def test_get_device_info(collector):
 
     responses.add(
         responses.GET,
-        f"{Config.FITBIT_API_BASE_URL}/1/user/-/devices.json",
+        f"{Config.FITBIT_API_BASE_URL}/devices.json",
         json=device_response,
         status=200,
     )

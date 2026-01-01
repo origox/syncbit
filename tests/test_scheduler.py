@@ -1,6 +1,5 @@
 """Tests for sync scheduler."""
 
-from datetime import datetime
 from unittest.mock import patch
 
 import pytest
@@ -38,7 +37,10 @@ def mock_writer():
 def mock_state():
     """Mock SyncState."""
     with patch("src.scheduler.SyncState") as mock:
-        yield mock.return_value
+        mock_instance = mock.return_value
+        # Return None by default to skip gap detection in sync_data()
+        mock_instance.get_last_successful_date.return_value = None
+        yield mock_instance
 
 
 @pytest.fixture
@@ -50,20 +52,21 @@ def scheduler(mock_auth, mock_collector, mock_writer, mock_state):
 @freeze_time("2024-01-15 12:00:00")
 def test_sync_data_success(scheduler, mock_collector, mock_writer, mock_state):
     """Test successful data sync."""
-    # Setup mocks
-    yesterday = datetime(2024, 1, 14)
-    mock_data = {"date": "2024-01-14", "steps": 10000}
-    mock_collector.get_daily_data.return_value = mock_data
+    # Setup mocks - syncs both yesterday and today
+    yesterday_data = {"date": "2024-01-14", "steps": 10000}
+    today_data = {"date": "2024-01-15", "steps": 5000}
+    mock_collector.get_daily_data.side_effect = [yesterday_data, today_data]
 
     # Execute
     scheduler.sync_data()
 
-    # Verify
-    mock_collector.get_daily_data.assert_called_once()
-    called_date = mock_collector.get_daily_data.call_args[0][0]
-    assert called_date.date() == yesterday.date()
+    # Verify - should call for both yesterday and today
+    assert mock_collector.get_daily_data.call_count == 2
 
-    mock_writer.write_daily_data.assert_called_once_with(mock_data)
+    # Verify both days were written
+    assert mock_writer.write_daily_data.call_count == 2
+
+    # Only yesterday's date updates state (today is incomplete)
     mock_state.update_last_sync.assert_called_once_with("2024-01-14")
 
 
@@ -83,20 +86,22 @@ def test_sync_data_write_failure(scheduler, mock_collector, mock_writer, mock_st
 @freeze_time("2024-01-15 12:00:00")
 def test_sync_data_rate_limit_retry(scheduler, mock_collector, mock_writer, mock_state):
     """Test sync retries on rate limit."""
-    mock_data = {"date": "2024-01-14", "steps": 10000}
+    yesterday_data = {"date": "2024-01-14", "steps": 10000}
+    today_data = {"date": "2024-01-15", "steps": 5000}
 
-    # First call raises rate limit, second succeeds
+    # First call raises rate limit, second succeeds, third for today
     mock_collector.get_daily_data.side_effect = [
         RateLimitError("Rate limited", retry_after=1),
-        mock_data,
+        yesterday_data,
+        today_data,
     ]
 
     with patch("time.sleep"):  # Don't actually sleep in tests
         scheduler.sync_data()
 
-    # Should have retried
-    assert mock_collector.get_daily_data.call_count == 2
-    mock_writer.write_daily_data.assert_called_once_with(mock_data)
+    # Should have retried yesterday and then synced today
+    assert mock_collector.get_daily_data.call_count == 3
+    assert mock_writer.write_daily_data.call_count == 2
     mock_state.update_last_sync.assert_called_once_with("2024-01-14")
 
 
@@ -109,8 +114,8 @@ def test_sync_data_rate_limit_max_retries(scheduler, mock_collector):
     with patch("time.sleep"):
         scheduler.sync_data()
 
-    # Should try 3 times (initial + 2 retries)
-    assert mock_collector.get_daily_data.call_count == 3
+    # Should try 3 times for yesterday (initial + 2 retries) and 3 times for today
+    assert mock_collector.get_daily_data.call_count == 6
 
 
 @freeze_time("2024-01-15 12:00:00")

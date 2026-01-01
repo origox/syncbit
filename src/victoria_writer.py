@@ -165,9 +165,7 @@ class VictoriaMetricsWriter:
                     br_value = br_entry["value"].get("breathingRate")
                     if br_value:
                         metrics.append(
-                            self._format_metric(
-                                "fitbit_breathing_rate_bpm", br_value, timestamp
-                            )
+                            self._format_metric("fitbit_breathing_rate_bpm", br_value, timestamp)
                         )
 
         # HRV (Heart Rate Variability)
@@ -176,9 +174,7 @@ class VictoriaMetricsWriter:
                 if "value" in hrv_entry:
                     rmssd = hrv_entry["value"].get("rmssd")
                     if rmssd:
-                        metrics.append(
-                            self._format_metric("fitbit_hrv_rmssd_ms", rmssd, timestamp)
-                        )
+                        metrics.append(self._format_metric("fitbit_hrv_rmssd_ms", rmssd, timestamp))
 
         # Cardio fitness score
         if "cardio_fitness" in data and data["cardio_fitness"]:

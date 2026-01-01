@@ -96,9 +96,7 @@ class Config:
     COLLECT_SPO2: bool = os.getenv("COLLECT_SPO2", "true").lower() == "true"
     COLLECT_BREATHING_RATE: bool = os.getenv("COLLECT_BREATHING_RATE", "true").lower() == "true"
     COLLECT_HRV: bool = os.getenv("COLLECT_HRV", "true").lower() == "true"
-    COLLECT_CARDIO_FITNESS: bool = (
-        os.getenv("COLLECT_CARDIO_FITNESS", "true").lower() == "true"
-    )
+    COLLECT_CARDIO_FITNESS: bool = os.getenv("COLLECT_CARDIO_FITNESS", "true").lower() == "true"
     COLLECT_TEMPERATURE: bool = os.getenv("COLLECT_TEMPERATURE", "true").lower() == "true"
     COLLECT_DEVICE_INFO: bool = os.getenv("COLLECT_DEVICE_INFO", "true").lower() == "true"
 
