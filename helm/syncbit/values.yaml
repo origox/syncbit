@@ -131,7 +131,7 @@ config:
   # Intraday data collection settings
   intraday:
     # -- Enable intraday data collection (requires Fitbit app type "Personal")
-    enabled: false
+    enabled: true
     # -- Detail level for activity data (1min, 5min, 15min)
     detailLevel: "5min"
     # -- Detail level for heart rate data (1sec, 1min, 5min, 15min)
@@ -139,7 +139,7 @@ config:
     # -- Resources to collect (comma-separated: steps, calories, distance, heart_rate, elevation, floors)
     resources: "steps,calories,distance,heart_rate"
     # -- Enable backfill of historical intraday data
-    backfillEnabled: false
+    backfillEnabled: true
     # -- Number of days to backfill
     backfillDays: 30
 
