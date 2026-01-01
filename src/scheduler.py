@@ -79,11 +79,27 @@ class SyncScheduler:
                     if success:
                         logger.info("Successfully synced device information")
             except RateLimitError as e:
-                wait_time = e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
-                logger.warning(
-                    f"Rate limited while collecting device info, waiting {wait_time} seconds..."
+                # Check if quota is exhausted (remaining <= 0)
+                quota_exhausted = (
+                    hasattr(e, "remaining") and e.remaining is not None and e.remaining <= 0
                 )
-                time.sleep(wait_time)
+
+                if quota_exhausted:
+                    # Don't wait if quota is exhausted - fail fast and let next scheduled run retry
+                    reset_time = (
+                        e.quota_reset if hasattr(e, "quota_reset") and e.quota_reset else "unknown"
+                    )
+                    logger.warning(
+                        f"Quota exhausted while collecting device info (remaining={e.remaining}, "
+                        f"resets in {reset_time}s). Skipping device info collection this cycle."
+                    )
+                else:
+                    # Transient rate limit - wait and continue
+                    wait_time = e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
+                    logger.warning(
+                        f"Rate limited while collecting device info, waiting {wait_time} seconds..."
+                    )
+                    time.sleep(wait_time)
             except Exception as e:
                 logger.error(f"Error syncing device info: {e}")
 
@@ -129,6 +145,26 @@ class SyncScheduler:
                     break  # Success - move to next date
 
                 except RateLimitError as e:
+                    # Check if quota is exhausted (remaining <= 0)
+                    quota_exhausted = (
+                        hasattr(e, "remaining") and e.remaining is not None and e.remaining <= 0
+                    )
+
+                    if quota_exhausted:
+                        # Quota exhausted - fail fast, don't retry
+                        reset_time = (
+                            e.quota_reset
+                            if hasattr(e, "quota_reset") and e.quota_reset
+                            else "unknown"
+                        )
+                        logger.warning(
+                            f"Quota exhausted during sync for {target_date.strftime('%Y-%m-%d')} "
+                            f"(remaining={e.remaining}, resets in {reset_time}s). "
+                            f"Skipping this sync cycle - will retry in next scheduled run."
+                        )
+                        break  # Move to next date or exit
+
+                    # Transient rate limit - retry with backoff
                     retry_count += 1
                     if retry_count > max_retries:
                         logger.error(
