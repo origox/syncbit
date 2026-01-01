@@ -1,3 +1,10 @@
+## [3.3.2](https://github.com/origox/syncbit/compare/v3.3.1...v3.3.2) (2026-01-01)
+
+
+### Bug Fixes
+
+* add tests for intraday to get ok coverage ([3cb6558](https://github.com/origox/syncbit/commit/3cb6558b05a508c6c640809bc3912a05aea299c8))
+
 ## [3.3.1](https://github.com/origox/syncbit/compare/v3.3.0...v3.3.1) (2026-01-01)
 
 
