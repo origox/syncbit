@@ -469,6 +469,7 @@ def test_get_device_info(collector):
             "id": "12345",
             "deviceVersion": "Charge 6",
             "battery": "High",
+            "batteryLevel": 85,
             "lastSyncTime": "2024-01-15T10:30:00.000Z",
             "type": "TRACKER",
         }
@@ -487,3 +488,4 @@ def test_get_device_info(collector):
     assert result[0]["id"] == "12345"
     assert result[0]["deviceVersion"] == "Charge 6"
     assert result[0]["battery"] == "High"
+    assert result[0]["batteryLevel"] == 85

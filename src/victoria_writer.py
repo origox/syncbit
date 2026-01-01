@@ -334,19 +334,23 @@ class VictoriaMetricsWriter:
             device_id = device.get("id", "unknown")
             device_type = device.get("deviceVersion", "unknown")
 
-            # Battery level
-            battery = device.get("battery")
-            if battery:
-                battery_level = self._parse_battery_level(battery)
-                if battery_level is not None:
-                    metrics.append(
-                        self._format_metric(
-                            "fitbit_device_battery_percent",
-                            battery_level,
-                            timestamp,
-                            {"device_id": device_id, "device_type": device_type},
-                        )
+            # Battery level - prefer batteryLevel (exact %) over battery (text)
+            battery_level = device.get("batteryLevel")
+            if battery_level is None:
+                # Fallback to parsing text battery level if batteryLevel not available
+                battery = device.get("battery")
+                if battery:
+                    battery_level = self._parse_battery_level(battery)
+
+            if battery_level is not None:
+                metrics.append(
+                    self._format_metric(
+                        "fitbit_device_battery_percent",
+                        battery_level,
+                        timestamp,
+                        {"device_id": device_id, "device_type": device_type},
                     )
+                )
 
             # Last sync time
             last_sync_time = device.get("lastSyncTime")

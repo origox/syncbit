@@ -178,3 +178,61 @@ def test_test_connection_failure(writer):
     result = writer.test_connection()
 
     assert result is False
+
+
+@responses.activate
+def test_write_device_info_with_battery_level(writer):
+    """Test device info write with exact batteryLevel field."""
+    test_endpoint = "https://victoria-metrics.example.com/api/v1/import/prometheus"
+    responses.add(responses.POST, test_endpoint, status=204)
+    writer.endpoint = test_endpoint
+
+    devices = [
+        {
+            "id": "12345",
+            "deviceVersion": "Charge 6",
+            "batteryLevel": 85,
+            "battery": "High",  # Should be ignored when batteryLevel is present
+            "lastSyncTime": "2024-01-15T10:30:00.000Z",
+        }
+    ]
+
+    result = writer.write_device_info(devices)
+
+    assert result is True
+    assert len(responses.calls) == 1
+
+    # Verify the request body contains exact battery level
+    request_body = responses.calls[0].request.body
+    assert b"fitbit_device_battery_percent" in request_body
+    assert b"85" in request_body  # Exact percentage
+    assert b'device_id="12345"' in request_body
+    assert b'device_type="Charge 6"' in request_body
+
+
+@responses.activate
+def test_write_device_info_fallback_to_text_battery(writer):
+    """Test device info falls back to text battery when batteryLevel missing."""
+    test_endpoint = "https://victoria-metrics.example.com/api/v1/import/prometheus"
+    responses.add(responses.POST, test_endpoint, status=204)
+    writer.endpoint = test_endpoint
+
+    devices = [
+        {
+            "id": "67890",
+            "deviceVersion": "Inspire 3",
+            "battery": "Medium",  # No batteryLevel field
+            "lastSyncTime": "2024-01-15T10:30:00.000Z",
+        }
+    ]
+
+    result = writer.write_device_info(devices)
+
+    assert result is True
+    assert len(responses.calls) == 1
+
+    # Verify the request body contains parsed battery level
+    request_body = responses.calls[0].request.body
+    assert b"fitbit_device_battery_percent" in request_body
+    assert b"50" in request_body  # "Medium" maps to 50%
+    assert b'device_id="67890"' in request_body
