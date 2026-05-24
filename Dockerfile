@@ -13,18 +13,19 @@ WORKDIR /build
 COPY requirements.txt ./
 
 # Install Python dependencies
-# Upgrade pip to 25.3+ to address CVE-2025-8869
-RUN pip install --no-cache-dir --upgrade "pip>=25.3" && \
+# Upgrade pip, wheel, setuptools to address known CVEs before installing deps
+RUN pip install --no-cache-dir --upgrade "pip>=26.1" "wheel>=0.46.2" "setuptools>=82.0.1" && \
     pip install --no-cache-dir -r requirements.txt
 
 
 # Runtime stage: Minimal production image
 FROM python:3.11-alpine
 
-# Install runtime dependencies only
+# Install runtime dependencies only and patch alpine packages with fixes
 RUN apk add --no-cache \
     libffi \
-    ca-certificates
+    ca-certificates && \
+    apk upgrade --no-cache xz-libs
 
 # Create non-root user
 RUN addgroup -g 1000 syncbit && \
@@ -44,6 +45,9 @@ RUN mkdir -p /run/secrets && \
 # Copy Python packages from builder
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Upgrade pip in runtime image to remove the base image's old pip dist-info (CVE-2025-8869, CVE-2026-3219, CVE-2026-6357)
+RUN pip install --no-cache-dir --upgrade "pip>=26.1"
 
 # Copy application code
 COPY --chown=syncbit:syncbit src/ /app/src/
