@@ -26,14 +26,14 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Log in to GitHub Container Registry
         if: github.event_name != 'pull_request'
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -41,7 +41,7 @@ jobs:
 
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -54,7 +54,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build Docker image (for scanning)
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           load: true
@@ -73,7 +73,7 @@ jobs:
           exit-code: '0'
 
       - name: Upload Trivy filesystem results to GitHub Security
-        uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
         if: always()
         with:
           sarif_file: 'trivy-fs-results.sarif'
@@ -115,7 +115,7 @@ jobs:
           fi
 
       - name: Upload Trivy container image results to GitHub Security
-        uses: github/codeql-action/upload-sarif@5d4e8d1aca955e8d8589aabd499c5cae939e33c7 # v4
+        uses: github/codeql-action/upload-sarif@7211b7c8077ea37d8641b6271f6a365a22a5fbfa # v4
         if: always()
         with:
           sarif_file: 'trivy-image-results.sarif'
@@ -139,7 +139,7 @@ jobs:
           exit-code: '1'  # Fail if critical/high vulnerabilities found
 
       - name: Upload Trivy results as artifact
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
           name: trivy-results
@@ -151,7 +151,7 @@ jobs:
 
       - name: Build and push multi-arch Docker image
         if: github.event_name != 'pull_request'
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -163,7 +163,7 @@ jobs:
 
       - name: Build multi-arch Docker image (PR only)
         if: github.event_name == 'pull_request'
-        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7.2.0
         with:
           context: .
           platforms: linux/amd64,linux/arm64
@@ -182,14 +182,14 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+        uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
 
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9 # v6.1.0
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
@@ -202,7 +202,7 @@ jobs:
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # v3
+        uses: docker/login-action@650006c6eb7dba73a995cc03b0b2d7f5ca915bee # v4.2.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
