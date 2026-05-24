@@ -117,16 +117,14 @@ class CallbackHandler(BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-type", "text/html")
             self.end_headers()
-            self.wfile.write(
-                b"""
+            self.wfile.write(b"""
                 <html>
                 <body>
                     <h1>Authorization successful!</h1>
                     <p>You can close this window and return to the application.</p>
                 </body>
                 </html>
-            """
-            )
+            """)
         else:
             self.send_response(400)
             self.send_header("Content-type", "text/html")
