@@ -1,3 +1,10 @@
+## [3.8.0](https://github.com/origox/syncbit/compare/v3.7.0...v3.8.0) (2026-05-24)
+
+
+### Features
+
+* **python:** update image python ( 3.11 → 3.14 ) ([#62](https://github.com/origox/syncbit/issues/62)) ([818ac02](https://github.com/origox/syncbit/commit/818ac02565055d95b59cd5e5931c30e8034d59a1))
+
 ## [3.7.0](https://github.com/origox/syncbit/compare/v3.6.2...v3.7.0) (2026-05-24)
 
 
