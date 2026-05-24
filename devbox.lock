@@ -1,9 +1,9 @@
 {
   "lockfile_version": "1",
   "packages": {
-    "direnv@latest": {
-      "last_modified": "2025-11-23T21:50:36Z",
-      "resolved": "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261#direnv",
+    "direnv@2.37.1": {
+      "last_modified": "2026-05-08T21:03:27Z",
+      "resolved": "github:NixOS/nixpkgs/b3da656039dc7a6240f27b2ef8cc6a3ef3bccae7#direnv",
       "source": "devbox-search",
       "version": "2.37.1",
       "systems": {
@@ -11,41 +11,41 @@
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/jvqli6w4plrjipvq1zs2k096rmiq5a3j-direnv-2.37.1",
+              "path": "/nix/store/nb9y6wsva2qmjz7a7ci6nm0m5n9f4814-direnv-2.37.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/jvqli6w4plrjipvq1zs2k096rmiq5a3j-direnv-2.37.1"
+          "store_path": "/nix/store/nb9y6wsva2qmjz7a7ci6nm0m5n9f4814-direnv-2.37.1"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/bimg3r15l5y511f0nwsbj05za20h682y-direnv-2.37.1",
+              "path": "/nix/store/d0sqv8s9gy7mxwixv9q3j3prfpc0s6q0-direnv-2.37.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/bimg3r15l5y511f0nwsbj05za20h682y-direnv-2.37.1"
+          "store_path": "/nix/store/d0sqv8s9gy7mxwixv9q3j3prfpc0s6q0-direnv-2.37.1"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/likv1z3frckgb92yzj92d8lbc3ahzpq0-direnv-2.37.1",
+              "path": "/nix/store/0fy8qnw7j3nrilw7scgfka18k1zx9zl5-direnv-2.37.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/likv1z3frckgb92yzj92d8lbc3ahzpq0-direnv-2.37.1"
+          "store_path": "/nix/store/0fy8qnw7j3nrilw7scgfka18k1zx9zl5-direnv-2.37.1"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/wpj4la1jgf0p8aimfzx49gfr3228vk8f-direnv-2.37.1",
+              "path": "/nix/store/d9mff3xzmx9ilj83mif6819rpd7m8mj7-direnv-2.37.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/wpj4la1jgf0p8aimfzx49gfr3228vk8f-direnv-2.37.1"
+          "store_path": "/nix/store/d9mff3xzmx9ilj83mif6819rpd7m8mj7-direnv-2.37.1"
         }
       }
     },
@@ -351,12 +351,12 @@
         "x86_64-linux": {
           "outputs": [
             {
-              "name": "man",
-              "path": "/tmp/containerbase/cache/nix/store/g9g7w1jzdv8bhs54csdbr9apf6xy8rh1-python3.13-pip-25.0.1-man",
+              "path": "/tmp/containerbase/cache/nix/store/6znazkrrrrrmb0j3az663xqhjksq47sj-python3.13-pip-25.0.1",
               "default": true
             },
             {
-              "path": "/tmp/containerbase/cache/nix/store/6znazkrrrrrmb0j3az663xqhjksq47sj-python3.13-pip-25.0.1",
+              "name": "man",
+              "path": "/tmp/containerbase/cache/nix/store/g9g7w1jzdv8bhs54csdbr9apf6xy8rh1-python3.13-pip-25.0.1-man",
               "default": true
             }
           ]
