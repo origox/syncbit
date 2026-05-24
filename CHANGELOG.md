@@ -1,3 +1,10 @@
+## [3.5.0](https://github.com/origox/syncbit/compare/v3.4.0...v3.5.0) (2026-05-24)
+
+
+### Features
+
+* **deps:** update dependency direnv ( 2.21.3 → 2.37.1 ) ([#56](https://github.com/origox/syncbit/issues/56)) ([5e05523](https://github.com/origox/syncbit/commit/5e05523fde7ed3ebf53fec1284b1e2e788746e2d))
+
 ## [3.4.0](https://github.com/origox/syncbit/compare/v3.3.2...v3.4.0) (2026-01-01)
 
 
