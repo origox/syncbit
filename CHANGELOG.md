@@ -1,3 +1,10 @@
+## [3.6.1](https://github.com/origox/syncbit/compare/v3.6.0...v3.6.1) (2026-05-24)
+
+
+### Bug Fixes
+
+* **security:** address Trivy HIGH/MEDIUM CVEs in image ([a5dcfe2](https://github.com/origox/syncbit/commit/a5dcfe2f15df248751ef85f679d8ff7c4674f360))
+
 ## [3.6.0](https://github.com/origox/syncbit/compare/v3.5.0...v3.6.0) (2026-05-24)
 
 
