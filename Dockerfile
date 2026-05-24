@@ -1,5 +1,5 @@
 # Build stage: Install dependencies
-FROM python:3.11-alpine AS builder
+FROM python:3.14-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -19,7 +19,7 @@ RUN pip install --no-cache-dir --upgrade "pip>=26.1" "wheel>=0.46.2" "setuptools
 
 
 # Runtime stage: Minimal production image
-FROM python:3.11-alpine
+FROM python:3.14-alpine
 
 # Install runtime dependencies only and patch alpine packages with fixes
 RUN apk add --no-cache \
