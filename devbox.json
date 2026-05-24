@@ -4,12 +4,12 @@
     "python313",
     "python313Packages.pip",
     "python313Packages.virtualenv",
-    "docker@29.1.2",
     "docker-client@29.4.3",
     "direnv@2.37.1",
-    "gh@2.92.0",
-    "kubernetes-helm@3.19.1",
-    "kubectl@1.34.3"
+    "gh@2.83.2",
+    "kubectl@1.34.3",
+    "docker@29.4.3",
+    "kubernetes-helm@3.20.2"
   ],
   "shell": {
     "init_hook": [

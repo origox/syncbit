@@ -97,51 +97,51 @@
         }
       }
     },
-    "docker@29.1.2": {
-      "last_modified": "2025-12-15T04:22:15Z",
-      "resolved": "github:NixOS/nixpkgs/09b8fda8959d761445f12b55f380d90375a1d6bb#docker",
+    "docker@29.4.3": {
+      "last_modified": "2026-05-20T06:38:13Z",
+      "resolved": "github:NixOS/nixpkgs/d99b013d5d1931ad77fe3912ed218170dec5d9a4#docker",
       "source": "devbox-search",
-      "version": "29.1.2",
+      "version": "29.4.3",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/38qw6ldsflj4jzvvfm2q7f4i7x1m79n7-docker-29.1.2",
+              "path": "/nix/store/wk6b67rzj4bkl2miwjnyjn52yfyfqizy-docker-29.4.3",
               "default": true
             }
           ],
-          "store_path": "/nix/store/38qw6ldsflj4jzvvfm2q7f4i7x1m79n7-docker-29.1.2"
+          "store_path": "/nix/store/wk6b67rzj4bkl2miwjnyjn52yfyfqizy-docker-29.4.3"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/qxgaqaqhnfb7772dgkmcp4xs75a78f0s-docker-29.1.2",
+              "path": "/nix/store/agydpsx060nhx12l9gn2qyqqiwnnynra-docker-29.4.3",
               "default": true
             }
           ],
-          "store_path": "/nix/store/qxgaqaqhnfb7772dgkmcp4xs75a78f0s-docker-29.1.2"
+          "store_path": "/nix/store/agydpsx060nhx12l9gn2qyqqiwnnynra-docker-29.4.3"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/1ybyvg7fkr64brb6hh33wchw1bwghi93-docker-29.1.2",
+              "path": "/nix/store/34jad8q1a14m26wmlz4pwr7svf6x5ldz-docker-29.4.3",
               "default": true
             }
           ],
-          "store_path": "/nix/store/1ybyvg7fkr64brb6hh33wchw1bwghi93-docker-29.1.2"
+          "store_path": "/nix/store/34jad8q1a14m26wmlz4pwr7svf6x5ldz-docker-29.4.3"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/lmapifc86ql4xysybykc37b4wg02f9i5-docker-29.1.2",
+              "path": "/nix/store/ixxhg17ijqh88x96kbyhnh62lmp4b30i-docker-29.4.3",
               "default": true
             }
           ],
-          "store_path": "/nix/store/lmapifc86ql4xysybykc37b4wg02f9i5-docker-29.1.2"
+          "store_path": "/nix/store/ixxhg17ijqh88x96kbyhnh62lmp4b30i-docker-29.4.3"
         }
       }
     },
@@ -281,51 +281,51 @@
         }
       }
     },
-    "kubernetes-helm@3.19.1": {
-      "last_modified": "2025-11-23T21:50:36Z",
-      "resolved": "github:NixOS/nixpkgs/ee09932cedcef15aaf476f9343d1dea2cb77e261#kubernetes-helm",
+    "kubernetes-helm@3.20.2": {
+      "last_modified": "2026-04-23T13:07:47Z",
+      "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#kubernetes-helm",
       "source": "devbox-search",
-      "version": "3.19.1",
+      "version": "3.20.2",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/xx21h4bmbmhncdlhw5q7gp3wx50x0y5g-kubernetes-helm-3.19.1",
+              "path": "/nix/store/aa9sfjsr2w4g8xg6n9jznh18wvan4bwm-kubernetes-helm-3.20.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/xx21h4bmbmhncdlhw5q7gp3wx50x0y5g-kubernetes-helm-3.19.1"
+          "store_path": "/nix/store/aa9sfjsr2w4g8xg6n9jznh18wvan4bwm-kubernetes-helm-3.20.2"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/s702f0l23v078mm6jkrbc7bx0qpjrzwm-kubernetes-helm-3.19.1",
+              "path": "/nix/store/wl1mr80ci6hj5x6nscdxqcalw2ppjf2r-kubernetes-helm-3.20.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/s702f0l23v078mm6jkrbc7bx0qpjrzwm-kubernetes-helm-3.19.1"
+          "store_path": "/nix/store/wl1mr80ci6hj5x6nscdxqcalw2ppjf2r-kubernetes-helm-3.20.2"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/z2is6ibqddfxx8mb1hybly00hb902h85-kubernetes-helm-3.19.1",
+              "path": "/nix/store/4b3hmzwr3ydsc9gh7rv665bgp4qf2n7z-kubernetes-helm-3.20.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/z2is6ibqddfxx8mb1hybly00hb902h85-kubernetes-helm-3.19.1"
+          "store_path": "/nix/store/4b3hmzwr3ydsc9gh7rv665bgp4qf2n7z-kubernetes-helm-3.20.2"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/b7g7s0jpfs93g7s1b556166mcswbkmcx-kubernetes-helm-3.19.1",
+              "path": "/nix/store/2qwwk0cxj9qx9c79hdhja4s4wmzikia5-kubernetes-helm-3.20.2",
               "default": true
             }
           ],
-          "store_path": "/nix/store/b7g7s0jpfs93g7s1b556166mcswbkmcx-kubernetes-helm-3.19.1"
+          "store_path": "/nix/store/2qwwk0cxj9qx9c79hdhja4s4wmzikia5-kubernetes-helm-3.20.2"
         }
       }
     },
