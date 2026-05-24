@@ -5,7 +5,7 @@
     "python313Packages.pip",
     "python313Packages.virtualenv",
     "docker@29.1.2",
-    "docker-client@29.1.2",
+    "docker-client@29.4.3",
     "direnv@2.37.1",
     "gh@2.83.2",
     "kubernetes-helm@3.19.1",
