@@ -1,3 +1,10 @@
+## [3.6.2](https://github.com/origox/syncbit/compare/v3.6.1...v3.6.2) (2026-05-24)
+
+
+### Bug Fixes
+
+* **lint:** apply black 26.x formatting and pin linting tools to dev requirements ([4224309](https://github.com/origox/syncbit/commit/422430996009cd0f0d4dc10768c6accb85cfe8e7))
+
 ## [3.6.1](https://github.com/origox/syncbit/compare/v3.6.0...v3.6.1) (2026-05-24)
 
 
