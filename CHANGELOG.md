@@ -1,3 +1,10 @@
+## [3.6.0](https://github.com/origox/syncbit/compare/v3.5.0...v3.6.0) (2026-05-24)
+
+
+### Features
+
+* **deps:** update dependency docker-client ( 29.1.2 → 29.4.3 ) ([#57](https://github.com/origox/syncbit/issues/57)) ([8e98054](https://github.com/origox/syncbit/commit/8e9805487a8d36bba1012350614a7c13b88cfa17))
+
 ## [3.5.0](https://github.com/origox/syncbit/compare/v3.4.0...v3.5.0) (2026-05-24)
 
 
