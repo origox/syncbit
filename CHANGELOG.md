@@ -1,3 +1,10 @@
+## [3.9.0](https://github.com/origox/syncbit/compare/v3.8.0...v3.9.0) (2026-06-05)
+
+
+### Features
+
+* **deps:** update dependency gh ( 2.83.2 → 2.93.0 ) ([4e34b5a](https://github.com/origox/syncbit/commit/4e34b5adc41264013a42ba28ef2455c396003eac))
+
 ## [3.8.0](https://github.com/origox/syncbit/compare/v3.7.0...v3.8.0) (2026-05-24)
 
 
