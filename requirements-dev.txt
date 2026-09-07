@@ -7,4 +7,4 @@ responses==0.26.1
 
 # Code quality
 black==26.5.1
-ruff==0.15.14
+ruff==0.16.6
