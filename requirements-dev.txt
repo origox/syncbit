@@ -6,5 +6,5 @@ freezegun==1.5.5
 responses==0.26.1
 
 # Code quality
-black==26.5.1
-ruff==0.15.14
+black==26.10.0
+ruff==0.16.10
