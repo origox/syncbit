@@ -1,3 +1,49 @@
+## [4.0.0](https://github.com/origox/syncbit/compare/v3.9.0...v4.0.0) (2026-11-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* HEALTH_PROVIDER defaults to "google", which requires
+GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET and data/google_tokens.json
+(run `python main.py --authorize`). Metrics are now labelled
+device="fitbit_air" (configurable via DEVICE_LABEL); existing data keeps
+device="charge6", so dashboards filtering on device need updating.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+* feat(helm): wire Google Health API credentials and settings
+
+- ExternalSecret pulls GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET from the
+  1Password item kubernetes/syncbit; Fitbit fields are only referenced
+  when config.healthProvider=fitbit
+- Add secrets.googleClientId / googleClientSecret for plain Secrets
+- Add config.healthProvider (default google), config.googleRedirectUri
+  and config.deviceLabel (default fitbit_air); an unknown provider fails
+  at render time
+- Share the provider and secret env blocks between the Deployment and
+  the authorization Job via _helpers.tpl
+- Document Google authorization, including in-pod --manual auth, and
+  that google_tokens.json must live on the PVC because it is rewritten
+  on every token refresh
+- Update the raw k8s Secret example and ConfigMap
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+* chore(dev): load Google OAuth credentials from 1Password
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+
+* fix(docker): copy dependencies without a hard-coded Python version
+
+### Features
+
+* migrate data collection to the Google Health API ([#67](https://github.com/origox/syncbit/issues/67)) ([cc5cb98](https://github.com/origox/syncbit/commit/cc5cb98964c4cdbc406d8937c5d4565a0fdca13b)), closes [#62](https://github.com/origox/syncbit/issues/62)
+
+
+### Documentation
+
+* add privacy policy for Google OAuth verification ([6a0e635](https://github.com/origox/syncbit/commit/6a0e635a3d32a085805140b8d357eceface4b539))
+
 ## [3.9.0](https://github.com/origox/syncbit/compare/v3.8.0...v3.9.0) (2026-06-05)
 
 
