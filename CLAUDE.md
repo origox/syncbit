@@ -255,5 +255,5 @@ Git hook validates commit messages automatically.
 **Pattern to follow:**
 - Each metric type has dedicated collection method
 - All API calls go through `_make_request()` for consistent error handling
-- Metrics use labels: `{user="...", device="charge6"}`
+- Metrics use labels: `{user="...", device="fitbit_air"}` (`DEVICE_LABEL`; Fitbit-era data is `device="charge6"`)
 - Timestamps in milliseconds (Victoria Metrics requirement)

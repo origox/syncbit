@@ -12,10 +12,11 @@ WORKDIR /build
 # Copy dependency files
 COPY requirements.txt ./
 
-# Install Python dependencies
+# Install Python dependencies into an isolated prefix, so the runtime stage
+# can copy them without hard-coding the Python version in a site-packages path.
 # Upgrade pip, wheel, setuptools to address known CVEs before installing deps
 RUN pip install --no-cache-dir --upgrade "pip>=26.1" "wheel>=0.46.2" "setuptools>=82.0.1" && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
 # Runtime stage: Minimal production image
@@ -42,12 +43,15 @@ RUN mkdir -p /app/data && \
 RUN mkdir -p /run/secrets && \
     chown -R syncbit:syncbit /run/secrets
 
-# Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy Python packages (and their console scripts) from builder
+COPY --from=builder /install /usr/local
 
-# Upgrade pip in runtime image to remove the base image's old pip dist-info (CVE-2025-8869, CVE-2026-3219, CVE-2026-6357)
-RUN pip install --no-cache-dir --upgrade "pip>=26.1"
+# Remove pip from the runtime image. The app never installs packages at
+# runtime, and pip's own CVEs (e.g. CVE-2025-8869, CVE-2026-3219,
+# CVE-2026-6357) would otherwise need chasing on every release. pip also
+# ships an SBOM declaring its vendored setuptools 70.3.0, which Trivy flags
+# as CVE-2025-47273 even in the latest pip.
+RUN python -m pip uninstall -y pip
 
 # Copy application code
 COPY --chown=syncbit:syncbit src/ /app/src/

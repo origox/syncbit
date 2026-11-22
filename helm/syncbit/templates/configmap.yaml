@@ -7,6 +7,9 @@ metadata:
 data:
   sync-interval-minutes: {{ .Values.config.syncIntervalMinutes | quote }}
   log-level: {{ .Values.config.logLevel | quote }}
+  health-provider: {{ include "syncbit.provider" . | quote }}
+  google-redirect-uri: {{ .Values.config.googleRedirectUri | quote }}
+  device-label: {{ .Values.config.deviceLabel | quote }}
   fitbit-redirect-uri: {{ .Values.config.fitbitRedirectUri | quote }}
   fitbit-user-id: {{ .Values.config.fitbitUserId | quote }}
   backfill-start-date: {{ .Values.config.backfillStartDate | quote }}

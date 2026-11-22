@@ -78,3 +78,87 @@ Get the image tag
 {{- define "syncbit.imageTag" -}}
 {{- .Values.image.tag | default .Chart.AppVersion }}
 {{- end }}
+
+{{/*
+Fail early on an unsupported provider instead of rendering a pod that crashes.
+*/}}
+{{- define "syncbit.provider" -}}
+{{- $p := .Values.config.healthProvider | default "google" | lower }}
+{{- if not (has $p (list "google" "fitbit")) }}
+{{- fail (printf "config.healthProvider must be \"google\" or \"fitbit\", got %q" $p) }}
+{{- end }}
+{{- $p }}
+{{- end }}
+
+{{/*
+Secret-backed env vars shared by the Deployment and the authorization Job.
+Only the selected provider's OAuth credentials are referenced, so the other
+provider's keys need not exist in the Secret / 1Password item.
+*/}}
+{{- define "syncbit.secretEnv" -}}
+{{- $secret := include "syncbit.secretName" . }}
+{{- if eq (include "syncbit.provider" .) "google" }}
+- name: GOOGLE_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: google-client-id
+- name: GOOGLE_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: google-client-secret
+{{- else }}
+- name: FITBIT_CLIENT_ID
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: fitbit-client-id
+- name: FITBIT_CLIENT_SECRET
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: fitbit-client-secret
+{{- end }}
+- name: VICTORIA_USER
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: victoria-user
+- name: VICTORIA_PASSWORD
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: victoria-password
+- name: VICTORIA_ENDPOINT
+  valueFrom:
+    secretKeyRef:
+      name: {{ $secret }}
+      key: victoria-endpoint
+{{- end }}
+
+{{/*
+Provider-related env vars from the ConfigMap, shared by Deployment and Job.
+*/}}
+{{- define "syncbit.providerEnv" -}}
+- name: HEALTH_PROVIDER
+  valueFrom:
+    configMapKeyRef:
+      name: {{ include "syncbit.fullname" . }}
+      key: health-provider
+- name: GOOGLE_REDIRECT_URI
+  valueFrom:
+    configMapKeyRef:
+      name: {{ include "syncbit.fullname" . }}
+      key: google-redirect-uri
+- name: FITBIT_REDIRECT_URI
+  valueFrom:
+    configMapKeyRef:
+      name: {{ include "syncbit.fullname" . }}
+      key: fitbit-redirect-uri
+- name: FITBIT_USER_ID
+  valueFrom:
+    configMapKeyRef:
+      name: {{ include "syncbit.fullname" . }}
+      key: fitbit-user-id
+{{- end }}

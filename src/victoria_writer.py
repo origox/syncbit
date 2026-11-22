@@ -1,4 +1,9 @@
-"""Victoria Metrics writer for Fitbit data in Prometheus format."""
+"""Victoria Metrics writer.
+
+Maps normalized health records onto Prometheus metric names. This module knows
+nothing about any upstream provider: collectors are responsible for translating
+their wire format into `health_types` first.
+"""
 
 import logging
 from datetime import datetime
@@ -6,6 +11,7 @@ from datetime import datetime
 import requests
 
 from .config import Config
+from .health_types import DailyRecord, DeviceInfo, IntradayRecord
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +42,7 @@ class VictoriaMetricsWriter:
         # Base labels
         all_labels = {
             "user": self.user_id,
-            "device": "charge6",
+            "device": Config.DEVICE_LABEL,
         }
 
         # Add custom labels
@@ -52,11 +58,11 @@ class VictoriaMetricsWriter:
         # Format: metric_name{labels} value timestamp
         return f"{name}{{{label_str}}} {value} {timestamp_ms}\n"
 
-    def write_daily_data(self, data: dict) -> bool:
-        """Write daily Fitbit data to Victoria Metrics.
+    def write_daily_data(self, data: DailyRecord) -> bool:
+        """Write one normalized daily record to Victoria Metrics.
 
         Args:
-            data: Daily data from Fitbit collector
+            data: Normalized daily record from a collector
 
         Returns:
             True if successful
@@ -64,142 +70,53 @@ class VictoriaMetricsWriter:
         timestamp = data["timestamp"]
         metrics = []
 
-        # Steps
-        metrics.append(self._format_metric("fitbit_steps_total", data["steps"], timestamp))
+        def add(name: str, value, labels: dict[str, str] | None = None) -> None:
+            metrics.append(self._format_metric(name, value, timestamp, labels))
 
-        # Distance (in kilometers)
-        metrics.append(self._format_metric("fitbit_distance_km", data["distance"], timestamp))
+        add("fitbit_steps_total", data["steps"])
+        add("fitbit_distance_km", data["distance"])
+        add("fitbit_calories_total", data["calories"])
 
-        # Calories
-        metrics.append(self._format_metric("fitbit_calories_total", data["calories"], timestamp))
-
-        # Active minutes by type
         for activity_type, minutes in data["active_minutes"].items():
-            metrics.append(
-                self._format_metric(
-                    "fitbit_active_minutes", minutes, timestamp, {"type": activity_type}
-                )
-            )
+            add("fitbit_active_minutes", minutes, {"type": activity_type})
 
-        # Resting heart rate
-        if data["heart_rate"]["resting"]:
-            metrics.append(
-                self._format_metric(
-                    "fitbit_resting_heart_rate_bpm", data["heart_rate"]["resting"], timestamp
-                )
-            )
+        if data.get("resting_heart_rate"):
+            add("fitbit_resting_heart_rate_bpm", data["resting_heart_rate"])
 
-        # Heart rate zones
-        for zone in data["heart_rate"]["zones"]:
-            zone_name = zone.get("name", "unknown").lower().replace(" ", "_")
-
-            # Minutes in zone
+        for zone in data.get("heart_rate_zones", []):
+            zone_label = {"zone": zone["zone"]}
             if "minutes" in zone:
-                metrics.append(
-                    self._format_metric(
-                        "fitbit_heart_rate_zone_minutes",
-                        zone["minutes"],
-                        timestamp,
-                        {"zone": zone_name},
-                    )
-                )
+                add("fitbit_heart_rate_zone_minutes", zone["minutes"], zone_label)
+            if "calories" in zone:
+                add("fitbit_heart_rate_zone_calories", zone["calories"], zone_label)
 
-            # Calories in zone
-            if "caloriesOut" in zone:
-                metrics.append(
-                    self._format_metric(
-                        "fitbit_heart_rate_zone_calories",
-                        zone["caloriesOut"],
-                        timestamp,
-                        {"zone": zone_name},
-                    )
-                )
+        sleep = data.get("sleep") or {}
+        if "total_minutes" in sleep:
+            add("fitbit_sleep_minutes_total", sleep["total_minutes"])
+        for stage_name, minutes in (sleep.get("stages") or {}).items():
+            add("fitbit_sleep_stage_minutes", minutes, {"stage": stage_name})
 
-        # Sleep data
-        if "sleep" in data and data["sleep"]:
-            sleep_summary = data["sleep"].get("summary", {})
+        spo2 = data.get("spo2") or {}
+        for bound, metric_name in (
+            ("avg", "fitbit_spo2_avg_percent"),
+            ("min", "fitbit_spo2_min_percent"),
+            ("max", "fitbit_spo2_max_percent"),
+        ):
+            if bound in spo2:
+                add(metric_name, spo2[bound])
 
-            # Total sleep minutes
-            if "totalMinutesAsleep" in sleep_summary:
-                metrics.append(
-                    self._format_metric(
-                        "fitbit_sleep_minutes_total",
-                        sleep_summary["totalMinutesAsleep"],
-                        timestamp,
-                    )
-                )
+        for key, metric_name in (
+            ("breathing_rate", "fitbit_breathing_rate_bpm"),
+            ("hrv_rmssd_ms", "fitbit_hrv_rmssd_ms"),
+            ("vo2_max", "fitbit_vo2_max"),
+            ("skin_temp_relative_c", "fitbit_temp_skin_relative_celsius"),
+        ):
+            if data.get(key) is not None:
+                add(metric_name, data[key])
 
-            # Sleep stages
-            stages = sleep_summary.get("stages", {})
-            for stage_name, minutes in stages.items():
-                if isinstance(minutes, (int, float)):
-                    metrics.append(
-                        self._format_metric(
-                            "fitbit_sleep_stage_minutes",
-                            minutes,
-                            timestamp,
-                            {"stage": stage_name},
-                        )
-                    )
-
-        # SpO2 data
-        if "spo2" in data and data["spo2"]:
-            spo2_value = data["spo2"].get("value", {})
-            if "avg" in spo2_value:
-                metrics.append(
-                    self._format_metric("fitbit_spo2_avg_percent", spo2_value["avg"], timestamp)
-                )
-            if "min" in spo2_value:
-                metrics.append(
-                    self._format_metric("fitbit_spo2_min_percent", spo2_value["min"], timestamp)
-                )
-            if "max" in spo2_value:
-                metrics.append(
-                    self._format_metric("fitbit_spo2_max_percent", spo2_value["max"], timestamp)
-                )
-
-        # Breathing rate
-        if "breathing_rate" in data and data["breathing_rate"]:
-            for br_entry in data["breathing_rate"]:
-                if "value" in br_entry:
-                    br_value = br_entry["value"].get("breathingRate")
-                    if br_value:
-                        metrics.append(
-                            self._format_metric("fitbit_breathing_rate_bpm", br_value, timestamp)
-                        )
-
-        # HRV (Heart Rate Variability)
-        if "hrv" in data and data["hrv"]:
-            for hrv_entry in data["hrv"]:
-                if "value" in hrv_entry:
-                    rmssd = hrv_entry["value"].get("rmssd")
-                    if rmssd:
-                        metrics.append(self._format_metric("fitbit_hrv_rmssd_ms", rmssd, timestamp))
-
-        # Cardio fitness score
-        if "cardio_fitness" in data and data["cardio_fitness"]:
-            for cf_entry in data["cardio_fitness"]:
-                if "vo2Max" in cf_entry:
-                    metrics.append(
-                        self._format_metric("fitbit_vo2_max", cf_entry["vo2Max"], timestamp)
-                    )
-
-        # Temperature
-        if "temperature" in data and data["temperature"]:
-            for temp_entry in data["temperature"]:
-                if "value" in temp_entry:
-                    temp_value = temp_entry["value"].get("nightlyRelative")
-                    if temp_value is not None:
-                        metrics.append(
-                            self._format_metric(
-                                "fitbit_temp_skin_relative_celsius", temp_value, timestamp
-                            )
-                        )
-
-        # Send metrics
         return self._send_metrics(metrics)
 
-    def write_multiple_days(self, data_points: list[dict]) -> tuple[int, int]:
+    def write_multiple_days(self, data_points: list[DailyRecord]) -> tuple[int, int]:
         """Write multiple days of data.
 
         Args:
@@ -258,11 +175,11 @@ class VictoriaMetricsWriter:
                 logger.error(f"Response: {e.response.text}")
             return False
 
-    def write_intraday_data(self, data: dict) -> bool:
-        """Write intraday Fitbit data to Victoria Metrics.
+    def write_intraday_data(self, data: IntradayRecord) -> bool:
+        """Write intraday samples to Victoria Metrics.
 
         Args:
-            data: Intraday data from Fitbit collector
+            data: Normalized intraday record from a collector
 
         Returns:
             True if successful
@@ -314,11 +231,11 @@ class VictoriaMetricsWriter:
 
         return success
 
-    def write_device_info(self, devices: list[dict]) -> bool:
-        """Write device information to Victoria Metrics.
+    def write_device_info(self, devices: list[DeviceInfo]) -> bool:
+        """Write normalized device state to Victoria Metrics.
 
         Args:
-            devices: List of device information dictionaries
+            devices: Normalized device state from a collector
 
         Returns:
             True if successful
@@ -331,75 +248,33 @@ class VictoriaMetricsWriter:
         metrics = []
 
         for device in devices:
-            device_id = device.get("id", "unknown")
-            device_type = device.get("deviceVersion", "unknown")
+            labels = {
+                "device_id": device.get("device_id", "unknown"),
+                "device_type": device.get("device_type", "unknown"),
+            }
 
-            # Battery level - prefer batteryLevel (exact %) over battery (text)
-            battery_level = device.get("batteryLevel")
-            if battery_level is None:
-                # Fallback to parsing text battery level if batteryLevel not available
-                battery = device.get("battery")
-                if battery:
-                    battery_level = self._parse_battery_level(battery)
-
-            if battery_level is not None:
+            if device.get("battery_percent") is not None:
                 metrics.append(
                     self._format_metric(
                         "fitbit_device_battery_percent",
-                        battery_level,
+                        device["battery_percent"],
                         timestamp,
-                        {"device_id": device_id, "device_type": device_type},
+                        labels,
                     )
                 )
 
-            # Last sync time
-            last_sync_time = device.get("lastSyncTime")
-            if last_sync_time:
-                try:
-                    # Parse ISO 8601 datetime
-                    sync_dt = datetime.fromisoformat(last_sync_time.replace("Z", "+00:00"))
-                    sync_timestamp = int(sync_dt.timestamp())
-                    metrics.append(
-                        self._format_metric(
-                            "fitbit_device_last_sync_timestamp",
-                            sync_timestamp,
-                            timestamp,
-                            {"device_id": device_id, "device_type": device_type},
-                        )
+            last_sync = device.get("last_sync")
+            if last_sync is not None:
+                metrics.append(
+                    self._format_metric(
+                        "fitbit_device_last_sync_timestamp",
+                        int(last_sync.timestamp()),
+                        timestamp,
+                        labels,
                     )
-                except (ValueError, AttributeError) as e:
-                    logger.warning(f"Error parsing last sync time: {e}")
+                )
 
         return self._send_metrics(metrics) if metrics else True
-
-    def _parse_battery_level(self, battery_str: str) -> float | None:
-        """Parse battery level from string.
-
-        Args:
-            battery_str: Battery level string (e.g., "High", "Medium", "Low", "85%")
-
-        Returns:
-            Battery percentage as float, or None if unparseable
-        """
-        battery_str = battery_str.strip()
-
-        # Try to parse percentage
-        if "%" in battery_str:
-            try:
-                return float(battery_str.replace("%", "").strip())
-            except ValueError:
-                pass
-
-        # Map text levels to approximate percentages
-        battery_map = {
-            "high": 80.0,
-            "medium": 50.0,
-            "low": 20.0,
-            "full": 100.0,
-            "empty": 0.0,
-        }
-
-        return battery_map.get(battery_str.lower())
 
     def test_connection(self) -> bool:
         """Test connection to Victoria Metrics.

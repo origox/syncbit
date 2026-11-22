@@ -1,4 +1,9 @@
-"""Fitbit data collector for activity, heart rate, and steps."""
+"""Fitbit data collector.
+
+Translates the Fitbit Web API's response shapes into the provider-neutral types
+in `health_types`, so that nothing downstream of this module needs to know
+Fitbit's field names.
+"""
 
 import logging
 import time
@@ -6,34 +11,25 @@ from datetime import datetime, timedelta
 
 import requests
 
+from .collector import RateLimitError
 from .config import Config
 from .fitbit_auth import FitbitAuth
+from .health_types import DailyRecord, DeviceInfo, HeartRateZone, Sleep, SpO2
+
+# Re-exported so existing importers of RateLimitError keep working.
+__all__ = ["FitbitCollector", "RateLimitError"]
 
 logger = logging.getLogger(__name__)
 
-
-class RateLimitError(Exception):
-    """Exception raised when rate limited by Fitbit API."""
-
-    def __init__(
-        self,
-        message: str,
-        retry_after: int,
-        quota_reset: int | None = None,
-        remaining: int | None = None,
-    ):
-        """Initialize with retry time and quota info.
-
-        Args:
-            message: Error message
-            retry_after: Seconds to wait before retry (from Retry-After header)
-            quota_reset: Seconds until quota resets (from Fitbit-Rate-Limit-Reset header)
-            remaining: Remaining requests in quota (from Fitbit-Rate-Limit-Remaining header)
-        """
-        super().__init__(message)
-        self.retry_after = retry_after
-        self.quota_reset = quota_reset
-        self.remaining = remaining
+# Fitbit reports coarse text battery levels on some devices; map them to
+# approximate percentages so the metric is always numeric.
+_BATTERY_TEXT_LEVELS = {
+    "high": 80.0,
+    "medium": 50.0,
+    "low": 20.0,
+    "full": 100.0,
+    "empty": 0.0,
+}
 
 
 class FitbitCollector:
@@ -152,14 +148,139 @@ class FitbitCollector:
         activity = self.get_activity_summary(date)
         return activity.get("steps", 0)
 
-    def get_daily_data(self, date: datetime) -> dict:
+    @staticmethod
+    def _first_nested(entries: list[dict] | None, *keys: str):
+        """Return the first non-null value found at `keys` across `entries`.
+
+        Fitbit returns most daily metrics as a single-element list wrapped in a
+        `value` object. Multiple entries for one date would all carry the same
+        metric timestamp and so collapse to a single sample on write, which is
+        why only the first usable value is kept.
+        """
+        for entry in entries or []:
+            value = entry
+            for key in keys:
+                if not isinstance(value, dict) or key not in value:
+                    value = None
+                    break
+                value = value[key]
+            if value is not None:
+                return value
+        return None
+
+    @staticmethod
+    def _normalize_heart_rate_zones(zones: list[dict]) -> list[HeartRateZone]:
+        """Convert Fitbit heart rate zones to normalized zone entries."""
+        normalized: list[HeartRateZone] = []
+        for zone in zones or []:
+            entry: HeartRateZone = {"zone": zone.get("name", "unknown").lower().replace(" ", "_")}
+            if "minutes" in zone:
+                entry["minutes"] = zone["minutes"]
+            if "caloriesOut" in zone:
+                entry["calories"] = zone["caloriesOut"]
+            normalized.append(entry)
+        return normalized
+
+    @staticmethod
+    def _normalize_sleep(raw: dict) -> Sleep:
+        """Convert a Fitbit sleep response to normalized sleep totals/stages."""
+        summary = (raw or {}).get("summary") or {}
+        sleep: Sleep = {}
+
+        if "totalMinutesAsleep" in summary:
+            sleep["total_minutes"] = summary["totalMinutesAsleep"]
+
+        stages = {
+            name: minutes
+            for name, minutes in (summary.get("stages") or {}).items()
+            if isinstance(minutes, (int, float))
+        }
+        if stages:
+            sleep["stages"] = stages
+
+        return sleep
+
+    @staticmethod
+    def _normalize_spo2(raw: dict) -> SpO2:
+        """Convert a Fitbit SpO2 response to normalized avg/min/max."""
+        value = (raw or {}).get("value") or {}
+        return {key: value[key] for key in ("avg", "min", "max") if key in value}
+
+    @classmethod
+    def _normalize_device(cls, device: dict) -> DeviceInfo:
+        """Convert a Fitbit device entry to normalized device state."""
+        info: DeviceInfo = {
+            "device_id": device.get("id", "unknown"),
+            "device_type": device.get("deviceVersion", "unknown"),
+        }
+
+        # Prefer the exact percentage; fall back to the coarse text level.
+        battery_level = device.get("batteryLevel")
+        if battery_level is None:
+            battery = device.get("battery")
+            if battery:
+                battery_level = cls._parse_battery_level(battery)
+        if battery_level is not None:
+            info["battery_percent"] = battery_level
+
+        last_sync = device.get("lastSyncTime")
+        if last_sync:
+            try:
+                info["last_sync"] = datetime.fromisoformat(last_sync.replace("Z", "+00:00"))
+            except (ValueError, AttributeError) as e:
+                logger.warning(f"Error parsing last sync time: {e}")
+
+        return info
+
+    @staticmethod
+    def _parse_battery_level(battery_str: str) -> float | None:
+        """Parse a Fitbit battery level into a percentage.
+
+        Args:
+            battery_str: Battery level (e.g. "High", "Medium", "Low", "85%")
+
+        Returns:
+            Battery percentage, or None if unparseable
+        """
+        battery_str = battery_str.strip()
+
+        if "%" in battery_str:
+            try:
+                return float(battery_str.replace("%", "").strip())
+            except ValueError:
+                pass
+
+        return _BATTERY_TEXT_LEVELS.get(battery_str.lower())
+
+    def _collect_optional(self, data: DailyRecord, key: str, fetch, normalize=None) -> None:
+        """Fetch one optional metric, normalize it, and store it under `key`.
+
+        Optional metrics are frequently unavailable (404) or not yet processed
+        by Fitbit. Any failure other than rate limiting is logged and skipped so
+        that one missing metric never costs the rest of the day's data.
+        """
+        try:
+            raw = fetch()
+        except RateLimitError:
+            raise  # Handled by the scheduler, which owns backoff.
+        except Exception as e:
+            logger.error(f"Error collecting {key}: {e}")
+            return
+
+        value = normalize(raw) if normalize else raw
+        if value is not None:
+            data[key] = value
+
+        time.sleep(5)  # Rate limit delay
+
+    def get_daily_data(self, date: datetime) -> DailyRecord:
         """Get all daily data for a specific date.
 
         Args:
             date: Date to fetch data for
 
         Returns:
-            Combined daily data including all enabled metrics
+            Normalized daily record for all enabled metrics
         """
         logger.info(f"Collecting data for {date.strftime('%Y-%m-%d')}")
 
@@ -167,15 +288,13 @@ class FitbitCollector:
         activity = self.get_activity_summary(date)
         heart_rate = self.get_heart_rate(date)
 
-        data = {
+        distances = activity.get("distances")
+
+        data: DailyRecord = {
             "date": date.strftime("%Y-%m-%d"),
             "timestamp": int(date.timestamp()),
             "steps": activity.get("steps", 0),
-            "distance": (
-                activity.get("distances", [{}])[0].get("distance", 0.0)
-                if activity.get("distances")
-                else 0.0
-            ),
+            "distance": distances[0].get("distance", 0.0) if distances else 0.0,
             "calories": activity.get("caloriesOut", 0),
             "active_minutes": {
                 "sedentary": activity.get("sedentaryMinutes", 0),
@@ -183,76 +302,58 @@ class FitbitCollector:
                 "fairly_active": activity.get("fairlyActiveMinutes", 0),
                 "very_active": activity.get("veryActiveMinutes", 0),
             },
-            "heart_rate": {
-                "resting": heart_rate.get("restingHeartRate", 0),
-                "zones": heart_rate.get("heartRateZones", []),
-            },
+            "resting_heart_rate": heart_rate.get("restingHeartRate", 0),
+            "heart_rate_zones": self._normalize_heart_rate_zones(
+                heart_rate.get("heartRateZones", [])
+            ),
         }
 
-        # Optional metrics based on configuration
+        # Optional metrics, each gated on its own configuration toggle.
         if Config.COLLECT_SLEEP:
-            try:
-                data["sleep"] = self.get_sleep_data(date)
-                time.sleep(5)  # Rate limit delay
-            except RateLimitError:
-                raise  # Re-raise rate limit errors to be handled by scheduler
-            except Exception as e:
-                logger.error(f"Error collecting sleep data: {e}")
-                data["sleep"] = {}
+            self._collect_optional(
+                data, "sleep", lambda: self.get_sleep_data(date), self._normalize_sleep
+            )
 
         if Config.COLLECT_SPO2:
-            try:
-                data["spo2"] = self.get_spo2_data(date)
-                time.sleep(5)  # Rate limit delay
-            except RateLimitError:
-                raise  # Re-raise rate limit errors to be handled by scheduler
-            except Exception as e:
-                logger.error(f"Error collecting SpO2 data: {e}")
-                data["spo2"] = {}
+            self._collect_optional(
+                data, "spo2", lambda: self.get_spo2_data(date), self._normalize_spo2
+            )
 
         if Config.COLLECT_BREATHING_RATE:
-            try:
-                data["breathing_rate"] = self.get_breathing_rate(date)
-                time.sleep(5)  # Rate limit delay
-            except RateLimitError:
-                raise  # Re-raise rate limit errors to be handled by scheduler
-            except Exception as e:
-                logger.error(f"Error collecting breathing rate: {e}")
-                data["breathing_rate"] = []
+            self._collect_optional(
+                data,
+                "breathing_rate",
+                lambda: self.get_breathing_rate(date),
+                lambda raw: self._first_nested(raw, "value", "breathingRate"),
+            )
 
         if Config.COLLECT_HRV:
-            try:
-                data["hrv"] = self.get_hrv_data(date)
-                time.sleep(5)  # Rate limit delay
-            except RateLimitError:
-                raise  # Re-raise rate limit errors to be handled by scheduler
-            except Exception as e:
-                logger.error(f"Error collecting HRV data: {e}")
-                data["hrv"] = []
+            self._collect_optional(
+                data,
+                "hrv_rmssd_ms",
+                lambda: self.get_hrv_data(date),
+                lambda raw: self._first_nested(raw, "value", "rmssd"),
+            )
 
         if Config.COLLECT_CARDIO_FITNESS:
-            try:
-                data["cardio_fitness"] = self.get_cardio_fitness_score(date)
-                time.sleep(5)  # Rate limit delay
-            except RateLimitError:
-                raise  # Re-raise rate limit errors to be handled by scheduler
-            except Exception as e:
-                logger.error(f"Error collecting cardio fitness: {e}")
-                data["cardio_fitness"] = []
+            self._collect_optional(
+                data,
+                "vo2_max",
+                lambda: self.get_cardio_fitness_score(date),
+                lambda raw: self._first_nested(raw, "vo2Max"),
+            )
 
         if Config.COLLECT_TEMPERATURE:
-            try:
-                data["temperature"] = self.get_temperature_data(date)
-                time.sleep(5)  # Rate limit delay
-            except RateLimitError:
-                raise  # Re-raise rate limit errors to be handled by scheduler
-            except Exception as e:
-                logger.error(f"Error collecting temperature data: {e}")
-                data["temperature"] = []
+            self._collect_optional(
+                data,
+                "skin_temp_relative_c",
+                lambda: self.get_temperature_data(date),
+                lambda raw: self._first_nested(raw, "value", "nightlyRelative"),
+            )
 
         return data
 
-    def get_historical_data(self, start_date: datetime, end_date: datetime) -> list[dict]:
+    def get_historical_data(self, start_date: datetime, end_date: datetime) -> list[DailyRecord]:
         """Get historical data for a date range.
 
         Args:
@@ -578,20 +679,24 @@ class FitbitCollector:
                 return []
             raise
 
-    def get_device_info(self) -> list[dict]:
-        """Get device information including battery, firmware, type, and last sync.
+    def get_device_info(self) -> list[DeviceInfo]:
+        """Get device state including battery level and last sync time.
 
         Returns:
-            List of device information dictionaries
+            Normalized device state, one entry per paired device
         """
         endpoint = "/devices.json"
 
         logger.debug("Fetching device information")
         try:
             data = self._make_request(endpoint)
-            return data if isinstance(data, list) else []
         except RateLimitError:
             raise  # Re-raise rate limit errors to be handled by scheduler
         except Exception as e:
             logger.error(f"Error fetching device info: {e}")
             return []
+
+        if not isinstance(data, list):
+            return []
+
+        return [self._normalize_device(device) for device in data]

@@ -98,21 +98,27 @@ externalSecrets:
     kind: ClusterSecretStore
   # Note: Secret paths are hardcoded in templates/externalsecret.yaml
   # Expected 1Password items in 'kubernetes' vault:
-  #   - syncbit: FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET
+  #   - syncbit: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
+  #     (FITBIT_CLIENT_ID, FITBIT_CLIENT_SECRET instead when config.healthProvider=fitbit)
   #   - victoria-metrics: USER, PASSWORD, ENDPOINT
 
 # Kubernetes Secrets (used when externalSecrets.enabled is false)
 secrets:
-  # -- Fitbit OAuth2 Client ID (base64 encoded)
+  # -- Google OAuth2 Client ID (used when config.healthProvider=google)
+  # Get this from https://console.cloud.google.com/auth/clients
+  googleClientId: ""
+  # -- Google OAuth2 Client Secret (used when config.healthProvider=google)
+  googleClientSecret: ""
+  # -- Fitbit OAuth2 Client ID (used when config.healthProvider=fitbit)
   # Get this from https://dev.fitbit.com/apps
   fitbitClientId: ""
-  # -- Fitbit OAuth2 Client Secret (base64 encoded)
+  # -- Fitbit OAuth2 Client Secret (used when config.healthProvider=fitbit)
   fitbitClientSecret: ""
-  # -- Victoria Metrics username (base64 encoded)
+  # -- Victoria Metrics username
   victoriaUser: ""
-  # -- Victoria Metrics password (base64 encoded)
+  # -- Victoria Metrics password
   victoriaPassword: ""
-  # -- Victoria Metrics endpoint URL (base64 encoded)
+  # -- Victoria Metrics endpoint URL
   victoriaEndpoint: ""
 
 # Application configuration
@@ -121,6 +127,13 @@ config:
   syncIntervalMinutes: 15
   # -- Log level (DEBUG, INFO, WARNING, ERROR)
   logLevel: INFO
+  # -- Health data provider: "google" (Google Health API) or "fitbit"
+  # (legacy Fitbit Web API, shut down by Google on 2026-11-02)
+  healthProvider: google
+  # -- Google OAuth redirect URI (must be registered on the OAuth client)
+  googleRedirectUri: "http://localhost:8080/callback"
+  # -- Device label applied to every metric (Fitbit-era data uses "charge6")
+  deviceLabel: "fitbit_air"
   # -- Fitbit OAuth redirect URI
   fitbitRedirectUri: "http://localhost:8080/callback"
   # -- User ID for metric labels
@@ -130,13 +143,14 @@ config:
 
   # Intraday data collection settings
   intraday:
-    # -- Enable intraday data collection (requires Fitbit app type "Personal")
+    # -- Enable intraday data collection
     enabled: true
     # -- Detail level for activity data (1min, 5min, 15min)
     detailLevel: "5min"
     # -- Detail level for heart rate data (1sec, 1min, 5min, 15min)
     heartRateDetail: "1min"
-    # -- Resources to collect (comma-separated: steps, calories, distance, heart_rate, elevation, floors)
+    # -- Resources to collect (comma-separated: steps, calories, distance, heart_rate;
+    # elevation and floors are Fitbit-only)
     resources: "steps,calories,distance,heart_rate"
     # -- Enable backfill of historical intraday data
     backfillEnabled: true

@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 
+from .collector import HealthDataCollector, RateLimitError
 from .config import Config
 from .fitbit_auth import FitbitAuth
-from .fitbit_collector import FitbitCollector, RateLimitError
+from .fitbit_collector import FitbitCollector
 from .sync_state import SyncState
 from .victoria_writer import VictoriaMetricsWriter
 
@@ -17,14 +18,32 @@ logger = logging.getLogger(__name__)
 
 
 class SyncScheduler:
-    """Schedules and manages periodic Fitbit data synchronization."""
+    """Schedules and manages periodic health data synchronization.
 
-    def __init__(self):
-        """Initialize scheduler."""
-        self.auth = FitbitAuth()
-        self.collector = FitbitCollector(self.auth)
-        self.writer = VictoriaMetricsWriter()
-        self.state = SyncState(Config.STATE_FILE)
+    The collector is injected so that swapping the upstream provider does not
+    require changes here; orchestration only depends on the
+    `HealthDataCollector` protocol and on `RateLimitError`.
+    """
+
+    def __init__(
+        self,
+        auth: FitbitAuth | None = None,
+        collector: HealthDataCollector | None = None,
+        writer: VictoriaMetricsWriter | None = None,
+        state: SyncState | None = None,
+    ):
+        """Initialize scheduler.
+
+        Args:
+            auth: Authentication handler; defaults to the Fitbit handler
+            collector: Data collector; defaults to the Fitbit collector
+            writer: Metrics writer; defaults to the Victoria Metrics writer
+            state: Sync state tracker; defaults to the configured state file
+        """
+        self.auth = auth or FitbitAuth()
+        self.collector = collector or FitbitCollector(self.auth)
+        self.writer = writer or VictoriaMetricsWriter()
+        self.state = state or SyncState(Config.STATE_FILE)
         self.scheduler = BlockingScheduler()
 
     def sync_data(self) -> None:
@@ -103,89 +122,54 @@ class SyncScheduler:
             except Exception as e:
                 logger.error(f"Error syncing device info: {e}")
 
-        # Determine which dates to sync
-        dates_to_sync = [datetime.now() - timedelta(days=1)]  # Yesterday (complete data)
-
-        if Config.INCLUDE_TODAY_DATA:
-            dates_to_sync.append(datetime.now())  # Today (incomplete but current)
+        # Yesterday is complete; today is partial but current. Both are fetched
+        # in one range request.
+        now = datetime.now()
+        yesterday = now - timedelta(days=1)
+        end = now if Config.INCLUDE_TODAY_DATA else yesterday
 
         max_retries = 2
-        for target_date in dates_to_sync:
-            retry_count = 0
-            is_complete_day = (
-                target_date.date() < datetime.now().date()
-            )  # Only yesterday or earlier is complete
-
-            while retry_count <= max_retries:
-                try:
-                    # Collect data
-                    data = self.collector.get_daily_data(target_date)
-
-                    # Write to Victoria Metrics
-                    success = self.writer.write_daily_data(data)
-
-                    if success:
-                        # Only update state for complete days (yesterday or earlier)
-                        # AND only if there's no gap
-                        if is_complete_day and not skip_state_update:
-                            self.state.update_last_sync(data["date"])
-                            logger.info(f"Successfully synced data for {data['date']}")
-                        elif is_complete_day and skip_state_update:
-                            logger.info(
-                                f"Successfully synced data for {data['date']} "
-                                f"(state NOT updated due to gap)"
-                            )
-                        else:
-                            logger.info(
-                                f"Successfully synced incomplete data for {data['date']} (today)"
-                            )
-                    else:
-                        logger.error(f"Failed to write data to Victoria Metrics for {data['date']}")
-
-                    break  # Success - move to next date
-
-                except RateLimitError as e:
-                    # Check if quota is exhausted (remaining <= 0)
-                    quota_exhausted = (
-                        hasattr(e, "remaining") and e.remaining is not None and e.remaining <= 0
-                    )
-
-                    if quota_exhausted:
-                        # Quota exhausted - fail fast, don't retry
-                        reset_time = (
-                            e.quota_reset
-                            if hasattr(e, "quota_reset") and e.quota_reset
-                            else "unknown"
-                        )
-                        logger.warning(
-                            f"Quota exhausted during sync for {target_date.strftime('%Y-%m-%d')} "
-                            f"(remaining={e.remaining}, resets in {reset_time}s). "
-                            f"Skipping this sync cycle - will retry in next scheduled run."
-                        )
-                        break  # Move to next date or exit
-
-                    # Transient rate limit - retry with backoff
-                    retry_count += 1
-                    if retry_count > max_retries:
-                        logger.error(
-                            f"Failed to sync {target_date.strftime('%Y-%m-%d')} "
-                            f"after {max_retries} retries due to rate limiting"
-                        )
-                        break
-
-                    wait_time = e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
+        records = None
+        for attempt in range(max_retries + 1):
+            try:
+                records = self.collector.get_historical_data(yesterday, end)
+                break
+            except RateLimitError as e:
+                if e.remaining is not None and e.remaining <= 0:
                     logger.warning(
-                        f"Rate limited during sync (retry {retry_count}/{max_retries}), "
-                        f"waiting {wait_time} seconds..."
+                        f"Quota exhausted during sync (remaining={e.remaining}, resets in "
+                        f"{e.quota_reset or 'unknown'}s). Will retry in next scheduled run."
                     )
-                    time.sleep(wait_time)
+                    return
+                if attempt == max_retries:
+                    logger.error(f"Sync failed after {max_retries} retries due to rate limiting")
+                    return
+                wait_time = e.retry_after or 60
+                logger.warning(
+                    f"Rate limited during sync (retry {attempt + 1}/{max_retries}), "
+                    f"waiting {wait_time} seconds..."
+                )
+                time.sleep(wait_time)
+            except Exception as e:
+                logger.error(f"Error during sync: {e}", exc_info=True)
+                return
 
-                except Exception as e:
-                    logger.error(
-                        f"Error during sync for {target_date.strftime('%Y-%m-%d')}: {e}",
-                        exc_info=True,
-                    )
-                    break
+        today_str = now.strftime("%Y-%m-%d")
+        for data in records or []:
+            # Only complete days (yesterday or earlier) advance the sync state.
+            is_complete_day = data["date"] < today_str
+            if not self.writer.write_daily_data(data):
+                logger.error(f"Failed to write data to Victoria Metrics for {data['date']}")
+                continue
+            if is_complete_day and not skip_state_update:
+                self.state.update_last_sync(data["date"])
+                logger.info(f"Successfully synced data for {data['date']}")
+            elif is_complete_day:
+                logger.info(
+                    f"Successfully synced data for {data['date']} (state NOT updated due to gap)"
+                )
+            else:
+                logger.info(f"Successfully synced incomplete data for {data['date']} (today)")
 
     def backfill_data(self) -> None:
         """Backfill historical data if needed with incremental syncing."""
@@ -256,165 +240,87 @@ class SyncScheduler:
         except Exception as e:
             logger.error(f"Error during backfill: {e}", exc_info=True)
 
-    def _backfill_with_incremental_sync(self, start_date: datetime, end_date: datetime) -> None:
-        """Backfill data with incremental syncing to Victoria Metrics.
+    # Days fetched per collector call during backfill. Matches the Google
+    # collector's largest single-request window, so each chunk costs one request
+    # per data type.
+    BACKFILL_CHUNK_DAYS = 14
 
-        Fetches data in batches and writes to Victoria Metrics incrementally.
-        This ensures progress is saved even if rate limited or interrupted.
+    def _backfill_with_incremental_sync(self, start_date: datetime, end_date: datetime) -> None:
+        """Backfill a date range in chunks, writing and saving progress per chunk.
+
+        Runs as fast as the upstream API allows: there are no fixed delays, and
+        throttling is handled by the collector's client-side limiter plus the
+        RateLimitError backoff here. Progress is saved after every chunk that
+        is fully written, so an interruption resumes where it stopped.
 
         Args:
             start_date: Start date for backfill
             end_date: End date for backfill
         """
-        batch_size = 10  # Write to Victoria Metrics every N days
-        batch = []
         total_successful = 0
         total_failed = 0
-        current_date = start_date
+        current = start_date
         consecutive_rate_limits = 0
         max_consecutive_rate_limits = 3
+        consecutive_errors = 0
+        max_consecutive_errors = 3
 
-        while current_date <= end_date:
+        while current.date() <= end_date.date():
+            chunk_end = min(current + timedelta(days=self.BACKFILL_CHUNK_DAYS - 1), end_date)
+            span = f"{current.strftime('%Y-%m-%d')}..{chunk_end.strftime('%Y-%m-%d')}"
+
             try:
-                # Fetch one day's data
-                daily_data = self.collector.get_daily_data(current_date)
-                batch.append(daily_data)
-                consecutive_rate_limits = 0  # Reset on success
-
-                # Write batch when full or at end
-                if len(batch) >= batch_size or current_date == end_date:
-                    successful, failed = self.writer.write_multiple_days(batch)
-                    total_successful += successful
-                    total_failed += failed
-
-                    if batch:
-                        # Update state to last successfully written date
-                        self.state.update_last_sync(batch[-1]["date"])
-                        logger.info(
-                            f"Synced batch: {successful} days written, "
-                            f"progress: {batch[-1]['date']}"
-                        )
-
-                    batch = []  # Clear batch
-
-                # Move to next date
-                current_date += timedelta(days=1)
-
-                # Rate limit compliance: wait 30 seconds between requests
-                if current_date <= end_date:
-                    time.sleep(30)
-
+                records = self.collector.get_historical_data(current, chunk_end)
             except RateLimitError as e:
                 consecutive_rate_limits += 1
-                logger.warning(
-                    f"Rate limited on {current_date.strftime('%Y-%m-%d')} "
-                    f"({consecutive_rate_limits}/{max_consecutive_rate_limits})"
-                )
-
-                # Write partial batch before handling error
-                if batch:
-                    logger.info(
-                        f"Writing partial batch of {len(batch)} days before rate limit wait..."
-                    )
-                    successful, failed = self.writer.write_multiple_days(batch)
-                    total_successful += successful
-                    total_failed += failed
-
-                    if batch:
-                        self.state.update_last_sync(batch[-1]["date"])
-
-                    batch = []
-
-                # Determine wait time based on quota status
-                base_wait_time = (
-                    e.retry_after if hasattr(e, "retry_after") and e.retry_after else 60
-                )
-
-                # Check if we should stop due to persistent rate limiting
                 if consecutive_rate_limits >= max_consecutive_rate_limits:
-                    # Check if quota is exhausted (remaining <= 0)
-                    quota_exhausted = (
-                        hasattr(e, "remaining") and e.remaining is not None and e.remaining <= 0
+                    logger.error(
+                        f"Rate limited {consecutive_rate_limits} times in a row on {span}. "
+                        f"Stopping backfill; progress saved at "
+                        f"{self.state.get_last_successful_date()}. Will resume on next run."
                     )
-
-                    if quota_exhausted and hasattr(e, "quota_reset") and e.quota_reset:
-                        # Use the exact quota reset time from API
-                        wait_time = e.quota_reset
-                        logger.warning(
-                            f"Hit {consecutive_rate_limits} consecutive rate limits. "
-                            f"Quota exhausted (remaining={e.remaining}). "
-                            f"Waiting {wait_time}s until quota resets..."
-                        )
-                    else:
-                        # Fall back to extended wait if no quota info available
-                        wait_time = 300
-                        logger.warning(
-                            f"Hit {consecutive_rate_limits} consecutive rate limits. "
-                            f"Waiting {wait_time}s before final retry..."
-                        )
-
-                    time.sleep(wait_time)
-
-                    # Try one final time after extended wait
-                    try:
-                        logger.info(
-                            f"Final retry for {current_date.strftime('%Y-%m-%d')} after extended wait"
-                        )
-                        daily_data = self.collector.get_daily_data(current_date)
-                        batch.append(daily_data)
-                        consecutive_rate_limits = 0  # Reset on success
-
-                        # Write batch if needed
-                        if len(batch) >= batch_size or current_date == end_date:
-                            successful, failed = self.writer.write_multiple_days(batch)
-                            total_successful += successful
-                            total_failed += failed
-                            if batch:
-                                self.state.update_last_sync(batch[-1]["date"])
-                                logger.info(
-                                    f"Synced batch after extended wait: progress={batch[-1]['date']}"
-                                )
-                            batch = []
-
-                        # Move to next date
-                        current_date += timedelta(days=1)
-                        if current_date <= end_date:
-                            time.sleep(30)  # Rate limit delay
-
-                    except RateLimitError:
-                        logger.error(
-                            f"Still rate limited after {wait_time}s wait. "
-                            f"Stopping backfill. Progress saved at {self.state.get_last_successful_date()}. "
-                            f"Will resume on next run."
-                        )
-                        break
-                    except Exception as e:
-                        logger.error(f"Error on final retry: {e}")
-                        current_date += timedelta(days=1)
-
-                    continue  # Continue to next iteration
-
-                logger.info(f"Waiting {base_wait_time} seconds before retrying...")
-                time.sleep(base_wait_time)
-                # Don't increment date - retry the same date
-
+                    break
+                wait_time = e.retry_after or 60
+                logger.warning(
+                    f"Rate limited on {span} ({consecutive_rate_limits}/"
+                    f"{max_consecutive_rate_limits}), waiting {wait_time}s..."
+                )
+                time.sleep(wait_time)
+                continue
             except Exception as e:
-                logger.error(f"Error fetching {current_date.strftime('%Y-%m-%d')}: {e}")
+                consecutive_errors += 1
+                if consecutive_errors < max_consecutive_errors:
+                    logger.warning(
+                        f"Error fetching {span} ({consecutive_errors}/{max_consecutive_errors}): "
+                        f"{e}. Retrying..."
+                    )
+                    time.sleep(5)
+                    continue
+                logger.error(f"Giving up on {span} after {consecutive_errors} errors: {e}")
+                consecutive_errors = 0
+                current = chunk_end + timedelta(days=1)
+                continue
 
-                # Write partial batch before handling error
-                if batch:
-                    logger.info(f"Writing partial batch of {len(batch)} days before error...")
-                    successful, failed = self.writer.write_multiple_days(batch)
-                    total_successful += successful
-                    total_failed += failed
+            consecutive_rate_limits = 0
+            consecutive_errors = 0
 
-                    if batch:
-                        self.state.update_last_sync(batch[-1]["date"])
+            successful, failed = self.writer.write_multiple_days(records)
+            total_successful += successful
+            total_failed += failed
 
-                    batch = []
+            if failed:
+                # Advancing the state past unwritten days would lose them for good.
+                logger.error(
+                    f"Failed to write {failed} day(s) in {span}. Stopping backfill; "
+                    f"will resume from {self.state.get_last_successful_date()} on next run."
+                )
+                break
 
-                # Move to next date
-                current_date += timedelta(days=1)
+            if records:
+                self.state.update_last_sync(records[-1]["date"])
+                logger.info(f"Synced {successful} days, progress: {records[-1]['date']}")
+
+            current = chunk_end + timedelta(days=1)
 
         logger.info(f"Backfill complete: {total_successful} successful, {total_failed} failed")
 
@@ -522,13 +428,9 @@ class SyncScheduler:
 
                 consecutive_rate_limits = 0  # Reset on success
 
-                # Move to next date
+                # Move to next date. No fixed delay: the collector throttles
+                # itself and rate limits are handled below.
                 current_date += timedelta(days=1)
-
-                # Rate limit compliance: wait 30 seconds between requests
-                # Intraday data uses ~4 API calls per day (one per resource)
-                if current_date <= end_date:
-                    time.sleep(30)
 
             except RateLimitError as e:
                 consecutive_rate_limits += 1
@@ -589,9 +491,6 @@ class SyncScheduler:
 
                         consecutive_rate_limits = 0  # Reset on success
                         current_date += timedelta(days=1)
-
-                        if current_date <= end_date:
-                            time.sleep(30)  # Rate limit delay
 
                     except RateLimitError:
                         logger.error(
@@ -685,18 +584,12 @@ class SyncScheduler:
 
         # Perform intraday backfill if enabled
         if Config.ENABLE_INTRADAY_COLLECTION and Config.ENABLE_INTRADAY_BACKFILL:
-            logger.info("Waiting 60 seconds before starting intraday backfill...")
-            time.sleep(60)
             self.backfill_intraday_data()
         else:
             logger.info(
                 f"Intraday backfill skipped: ENABLE_INTRADAY_COLLECTION={Config.ENABLE_INTRADAY_COLLECTION}, "
                 f"ENABLE_INTRADAY_BACKFILL={Config.ENABLE_INTRADAY_BACKFILL}"
             )
-
-        # Wait a bit after backfill to avoid immediate rate limiting
-        logger.info("Waiting 60 seconds before starting regular sync...")
-        time.sleep(60)
 
         # Perform immediate sync
         self.sync_data()

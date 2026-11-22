@@ -2,13 +2,14 @@ Thank you for installing {{ .Chart.Name }}!
 
 Your release is named {{ .Release.Name }}.
 
-📊 SyncBit is now syncing Fitbit data to Victoria Metrics!
+📊 SyncBit is now syncing health data to Victoria Metrics!
 
 =============================================================================
 IMPORTANT: OAuth2 Authorization Required
 =============================================================================
 
-Before SyncBit can sync data, you must complete Fitbit OAuth2 authorization:
+Before SyncBit can sync data, you must complete OAuth2 authorization
+(provider: {{ include "syncbit.provider" . }}):
 
 {{- if .Values.persistence.enabled }}
 
@@ -16,10 +17,17 @@ Before SyncBit can sync data, you must complete Fitbit OAuth2 authorization:
    kubectl get pods -l app.kubernetes.io/name={{ include "syncbit.name" . }} -n {{ .Release.Namespace }}
 
 2. Run the authorization command:
+{{- if eq (include "syncbit.provider" .) "google" }}
+   kubectl exec -it deployment/{{ include "syncbit.fullname" . }} -n {{ .Release.Namespace }} -- python main.py --authorize --manual
+
+3. Open the printed URL, tick every permission on Google's consent screen,
+   then paste the `code` from the redirect URL at the prompt
+{{- else }}
    kubectl exec -it deployment/{{ include "syncbit.fullname" . }} -n {{ .Release.Namespace }} -- python main.py --authorize
 
 3. Follow the browser prompts to authorize Fitbit access
    (You may need to port-forward if running in a cluster)
+{{- end }}
 
 4. Tokens will be saved to the persistent volume
 
@@ -48,6 +56,8 @@ Secrets:
 Application Settings:
   Sync Interval: {{ .Values.config.syncIntervalMinutes }} minutes
   Log Level: {{ .Values.config.logLevel }}
+  Provider: {{ include "syncbit.provider" . }}
+  Device Label: {{ .Values.config.deviceLabel }}
   Fitbit User ID: {{ .Values.config.fitbitUserId }}
   Backfill Start: {{ .Values.config.backfillStartDate }}
 

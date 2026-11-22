@@ -1,6 +1,6 @@
 """Tests for Fitbit data collector."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from unittest.mock import Mock
 
 import pytest
@@ -261,8 +261,10 @@ def test_get_daily_data(
     assert "elevation" not in result
     assert result["active_minutes"]["sedentary"] == 600
     assert result["active_minutes"]["very_active"] == 60
-    assert result["heart_rate"]["resting"] == 62
-    assert len(result["heart_rate"]["zones"]) == 2
+    assert result["resting_heart_rate"] == 62
+    assert len(result["heart_rate_zones"]) == 2
+    # Zone names are normalized to lower_snake_case by the collector
+    assert result["heart_rate_zones"][0]["zone"] == "out_of_range"
 
 
 @responses.activate
@@ -484,8 +486,9 @@ def test_get_device_info(collector):
 
     result = collector.get_device_info()
 
+    # Device entries are normalized; batteryLevel wins over the text level
     assert len(result) == 1
-    assert result[0]["id"] == "12345"
-    assert result[0]["deviceVersion"] == "Charge 6"
-    assert result[0]["battery"] == "High"
-    assert result[0]["batteryLevel"] == 85
+    assert result[0]["device_id"] == "12345"
+    assert result[0]["device_type"] == "Charge 6"
+    assert result[0]["battery_percent"] == 85
+    assert result[0]["last_sync"] == datetime(2024, 1, 15, 10, 30, tzinfo=UTC)
