@@ -46,11 +46,12 @@ RUN mkdir -p /run/secrets && \
 # Copy Python packages (and their console scripts) from builder
 COPY --from=builder /install /usr/local
 
-# Upgrade pip and setuptools in the runtime image to replace the base image's
-# old copies (pip: CVE-2025-8869, CVE-2026-3219, CVE-2026-6357; setuptools:
-# CVE-2025-47273, CVE-2026-59890). The builder's upgraded copies are not
-# carried over, since only /install is copied from it.
-RUN pip install --no-cache-dir --upgrade "pip>=26.1" "setuptools>=83.0.0"
+# Remove pip from the runtime image. The app never installs packages at
+# runtime, and pip's own CVEs (e.g. CVE-2025-8869, CVE-2026-3219,
+# CVE-2026-6357) would otherwise need chasing on every release. pip also
+# ships an SBOM declaring its vendored setuptools 70.3.0, which Trivy flags
+# as CVE-2025-47273 even in the latest pip.
+RUN python -m pip uninstall -y pip
 
 # Copy application code
 COPY --chown=syncbit:syncbit src/ /app/src/
