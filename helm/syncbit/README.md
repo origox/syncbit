@@ -1,6 +1,6 @@
 # SyncBit Helm Chart
 
-A Helm chart for deploying SyncBit - Fitbit to Victoria Metrics data synchronization service.
+A Helm chart for deploying SyncBit - Fitbit health data (via the Google Health API) to Victoria Metrics synchronization service.
 
 ## Prerequisites
 
@@ -17,8 +17,8 @@ The chart is published as an OCI artifact to GitHub Container Registry:
 
 ```bash
 helm install syncbit oci://ghcr.io/origox/charts/syncbit --version 1.4.0 \
-  --set secrets.fitbitClientId="your-client-id" \
-  --set secrets.fitbitClientSecret="your-client-secret" \
+  --set secrets.googleClientId="your-client-id.apps.googleusercontent.com" \
+  --set secrets.googleClientSecret="your-client-secret" \
   --set secrets.victoriaEndpoint="https://victoria-metrics.example.com/api/v1/import/prometheus" \
   --set secrets.victoriaUser="your-username" \
   --set secrets.victoriaPassword="your-password"
@@ -32,8 +32,8 @@ For development or testing from local source:
 
 ```bash
 helm install syncbit ./helm/syncbit \
-  --set secrets.fitbitClientId="your-client-id" \
-  --set secrets.fitbitClientSecret="your-client-secret" \
+  --set secrets.googleClientId="your-client-id.apps.googleusercontent.com" \
+  --set secrets.googleClientSecret="your-client-secret" \
   --set secrets.victoriaEndpoint="https://victoria-metrics.example.com/api/v1/import/prometheus" \
   --set secrets.victoriaUser="your-username" \
   --set secrets.victoriaPassword="your-password"
@@ -57,7 +57,11 @@ helm install syncbit oci://ghcr.io/origox/charts/syncbit --version 1.4.0 \
 
 ## OAuth2 Authorization
 
-After installation, you must authorize SyncBit to access your Fitbit data. There are two methods:
+After installation, you must authorize SyncBit to access your health data through Google. The tokens are written to `/app/data/google_tokens.json` on the persistent volume and **rewritten on every hourly token refresh**, so they must live on the PVC (never in a read-only ConfigMap or Secret).
+
+> While the Google OAuth app is in *Testing* mode, refresh tokens expire after 7 days and authorization must be repeated. Publish the app to production (Google Auth Platform → Audience) to avoid this.
+
+There are three methods:
 
 ### Method 1: Using the Authorization Job (Recommended)
 
@@ -75,10 +79,12 @@ kubectl get pods -l app.kubernetes.io/component=authorization
 # Port-forward to access the OAuth callback server
 kubectl port-forward job/syncbit-authorize 8080:8080
 
-# Follow the authorization URL in the pod logs
+# Follow the authorization URL in the pod logs (starts with https://accounts.google.com)
 kubectl logs -f job/syncbit-authorize
 
-# Open the URL in your browser and complete the OAuth flow
+# Open the URL in your browser and complete the OAuth flow.
+# On Google's consent screen, tick every permission: unticked scopes are
+# silently left out of the token and their data returns 403.
 ```
 
 After authorization is complete, disable the job and scale up the deployment:
@@ -102,20 +108,28 @@ Authorize locally and upload tokens to the cluster:
 docker run --rm -it \
   -v $(pwd)/data:/app/data \
   -p 8080:8080 \
-  -e FITBIT_CLIENT_ID="your-client-id" \
-  -e FITBIT_CLIENT_SECRET="your-client-secret" \
+  -e GOOGLE_CLIENT_ID="your-client-id.apps.googleusercontent.com" \
+  -e GOOGLE_CLIENT_SECRET="your-client-secret" \
+  -e VICTORIA_ENDPOINT -e VICTORIA_USER -e VICTORIA_PASSWORD \
   ghcr.io/origox/syncbit:latest --authorize
 
 # Upload the tokens to the Kubernetes PVC
-kubectl cp ./data/fitbit_tokens.json <syncbit-pod>:/app/data/
+kubectl cp ./data/google_tokens.json <syncbit-pod>:/app/data/
+```
 
-# Or create a configmap and mount it
-kubectl create configmap syncbit-tokens --from-file=./data/fitbit_tokens.json
+### Method 3: Authorize Inside the Running Pod
+
+No port-forward needed: paste the code back by hand.
+
+```bash
+kubectl exec -it deploy/syncbit -- python main.py --authorize --manual
+# Open the printed URL, approve, then copy the `code` parameter from the
+# address bar of the (failing) localhost redirect and paste it at the prompt.
 ```
 
 The authorization tokens will be stored in the persistent volume.
 
-### Method 3: ArgoCD Deployments
+### Method 4: ArgoCD Deployments
 
 When using ArgoCD, use parameter overrides to avoid sync conflicts:
 
@@ -157,7 +171,7 @@ authorize-argocd app_name="syncbit":
     POD_NAME=$(kubectl get pods -l app.kubernetes.io/component=authorization -o jsonpath='{.items[0].metadata.name}')
 
     echo "=== Authorization URL ==="
-    kubectl logs $POD_NAME | grep "https://www.fitbit.com"
+    kubectl logs $POD_NAME | grep "https://accounts.google.com"
 
     echo -e "\nStarting port-forward. Open the URL above in your browser."
     kubectl port-forward $POD_NAME 8080:8080 &
@@ -253,8 +267,9 @@ The following table lists the configurable parameters of the SyncBit chart and t
 When using External Secrets Operator, the chart expects the following 1Password items in the `kubernetes` vault:
 
 - **Item: `syncbit`**
-  - Field: `FITBIT_CLIENT_ID`
-  - Field: `FITBIT_CLIENT_SECRET`
+  - Field: `GOOGLE_CLIENT_ID`
+  - Field: `GOOGLE_CLIENT_SECRET`
+  - (`FITBIT_CLIENT_ID` / `FITBIT_CLIENT_SECRET` instead, only when `config.healthProvider=fitbit`)
 
 - **Item: `victoria-metrics`**
   - Field: `USER`
@@ -267,8 +282,10 @@ The secret paths are hardcoded in the ExternalSecret template. To use different 
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `secrets.fitbitClientId` | Fitbit OAuth Client ID | `""` |
-| `secrets.fitbitClientSecret` | Fitbit OAuth Client Secret | `""` |
+| `secrets.googleClientId` | Google OAuth Client ID (provider `google`) | `""` |
+| `secrets.googleClientSecret` | Google OAuth Client Secret (provider `google`) | `""` |
+| `secrets.fitbitClientId` | Fitbit OAuth Client ID (provider `fitbit`) | `""` |
+| `secrets.fitbitClientSecret` | Fitbit OAuth Client Secret (provider `fitbit`) | `""` |
 | `secrets.victoriaUser` | Victoria Metrics username | `""` |
 | `secrets.victoriaPassword` | Victoria Metrics password | `""` |
 | `secrets.victoriaEndpoint` | Victoria Metrics endpoint | `""` |
@@ -279,7 +296,10 @@ The secret paths are hardcoded in the ExternalSecret template. To use different 
 |-----------|-------------|---------|
 | `config.syncIntervalMinutes` | Sync interval in minutes | `15` |
 | `config.logLevel` | Log level | `INFO` |
-| `config.fitbitRedirectUri` | OAuth redirect URI | `http://localhost:8080/callback` |
+| `config.healthProvider` | `google` (Google Health API) or `fitbit` (legacy, shut down 2026-11-02) | `google` |
+| `config.googleRedirectUri` | Google OAuth redirect URI | `http://localhost:8080/callback` |
+| `config.deviceLabel` | `device` label on every metric (older data: `charge6`) | `fitbit_air` |
+| `config.fitbitRedirectUri` | Fitbit OAuth redirect URI | `http://localhost:8080/callback` |
 | `config.fitbitUserId` | User ID for metric labels | `default` |
 | `config.backfillStartDate` | Backfill start date | `2025-06-01` |
 
@@ -415,8 +435,8 @@ To test the chart locally with `helm template`:
 
 ```bash
 helm template syncbit ./helm/syncbit \
-  --set secrets.fitbitClientId=test \
-  --set secrets.fitbitClientSecret=test \
+  --set secrets.googleClientId=test \
+  --set secrets.googleClientSecret=test \
   --set secrets.victoriaEndpoint=test \
   --set secrets.victoriaUser=test \
   --set secrets.victoriaPassword=test

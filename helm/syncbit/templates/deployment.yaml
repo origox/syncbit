@@ -49,16 +49,12 @@ spec:
             configMapKeyRef:
               name: {{ include "syncbit.fullname" . }}
               key: log-level
-        - name: FITBIT_REDIRECT_URI
+        {{- include "syncbit.providerEnv" . | nindent 8 }}
+        - name: DEVICE_LABEL
           valueFrom:
             configMapKeyRef:
               name: {{ include "syncbit.fullname" . }}
-              key: fitbit-redirect-uri
-        - name: FITBIT_USER_ID
-          valueFrom:
-            configMapKeyRef:
-              name: {{ include "syncbit.fullname" . }}
-              key: fitbit-user-id
+              key: device-label
         - name: BACKFILL_START_DATE
           valueFrom:
             configMapKeyRef:
@@ -99,31 +95,7 @@ spec:
               key: intraday-backfill-days
         # Secrets from Secret or ExternalSecret (loaded as env vars)
         # The application's config.py supports dual-mode: /run/secrets/* OR environment variables
-        - name: FITBIT_CLIENT_ID
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "syncbit.secretName" . }}
-              key: fitbit-client-id
-        - name: FITBIT_CLIENT_SECRET
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "syncbit.secretName" . }}
-              key: fitbit-client-secret
-        - name: VICTORIA_USER
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "syncbit.secretName" . }}
-              key: victoria-user
-        - name: VICTORIA_PASSWORD
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "syncbit.secretName" . }}
-              key: victoria-password
-        - name: VICTORIA_ENDPOINT
-          valueFrom:
-            secretKeyRef:
-              name: {{ include "syncbit.secretName" . }}
-              key: victoria-endpoint
+        {{- include "syncbit.secretEnv" . | nindent 8 }}
         volumeMounts:
         - name: data
           mountPath: /app/data

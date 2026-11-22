@@ -5,6 +5,9 @@ metadata:
   namespace: default
 data:
   VICTORIA_ENDPOINT: ""
+  HEALTH_PROVIDER: "google"
+  GOOGLE_REDIRECT_URI: "http://localhost:8080/callback"
+  DEVICE_LABEL: "fitbit_air"
   FITBIT_REDIRECT_URI: "http://localhost:8080/callback"
   SYNC_INTERVAL_MINUTES: "15"
   DATA_DIR: "/app/data"
