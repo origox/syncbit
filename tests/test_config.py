@@ -26,6 +26,7 @@ def test_config_loads_from_env(monkeypatch, tmp_path):
 
 def test_config_validation_missing_fitbit_client_id(monkeypatch, tmp_path):
     """Test validation fails when FITBIT_CLIENT_ID is missing."""
+    monkeypatch.setattr(Config, "HEALTH_PROVIDER", "fitbit")
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.delenv("FITBIT_CLIENT_ID", raising=False)
 
@@ -40,6 +41,7 @@ def test_config_validation_missing_fitbit_client_id(monkeypatch, tmp_path):
 
 def test_config_validation_missing_fitbit_client_secret(monkeypatch, tmp_path):
     """Test validation fails when FITBIT_CLIENT_SECRET is missing."""
+    monkeypatch.setattr(Config, "HEALTH_PROVIDER", "fitbit")
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
     monkeypatch.setenv("FITBIT_CLIENT_ID", "test_id")
     monkeypatch.delenv("FITBIT_CLIENT_SECRET", raising=False)
@@ -114,3 +116,28 @@ def test_config_file_paths(tmp_path, monkeypatch):
 
     assert data_dir / "fitbit_tokens.json" == config_module.Config.TOKEN_FILE
     assert data_dir / "sync_state.json" == config_module.Config.STATE_FILE
+
+
+def test_config_validation_google_requires_google_credentials(monkeypatch):
+    """The default provider is Google, which needs no Fitbit credentials."""
+    monkeypatch.setattr(Config, "HEALTH_PROVIDER", "google")
+    monkeypatch.setattr(Config, "FITBIT_CLIENT_ID", "")
+    monkeypatch.setattr(Config, "GOOGLE_CLIENT_ID", "")
+    monkeypatch.setattr(Config, "GOOGLE_CLIENT_SECRET", "")
+
+    with pytest.raises(ValueError) as exc_info:
+        Config.validate()
+
+    message = str(exc_info.value)
+    assert "GOOGLE_CLIENT_ID is required" in message
+    assert "GOOGLE_CLIENT_SECRET is required" in message
+    assert "FITBIT" not in message
+
+
+def test_config_validation_rejects_unknown_provider(monkeypatch):
+    monkeypatch.setattr(Config, "HEALTH_PROVIDER", "garmin")
+
+    with pytest.raises(ValueError) as exc_info:
+        Config.validate()
+
+    assert "HEALTH_PROVIDER" in str(exc_info.value)

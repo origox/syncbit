@@ -1,5 +1,7 @@
 """Tests for Victoria Metrics writer."""
 
+from datetime import UTC, datetime
+
 import pytest
 import responses
 
@@ -68,22 +70,44 @@ def test_write_daily_data_converts_to_metrics(writer):
             "fairly_active": 20,
             "very_active": 30,
         },
-        "floors": 12,
-        "elevation": 30.48,
-        "heart_rate": {
-            "resting": 62,
-            "zones": [
-                {"name": "Out of Range", "minutes": 720, "caloriesOut": 100.0},
-                {"name": "Fat Burn", "minutes": 180, "caloriesOut": 200.0},
-            ],
-        },
+        "resting_heart_rate": 62,
+        "heart_rate_zones": [
+            {"zone": "out_of_range", "minutes": 720, "calories": 100.0},
+            {"zone": "fat_burn", "minutes": 180, "calories": 200.0},
+        ],
+        "sleep": {"total_minutes": 432, "stages": {"deep": 80, "rem": 90}},
+        "spo2": {"avg": 96.5, "min": 92.0, "max": 99.0},
+        "breathing_rate": 14.5,
+        "hrv_rmssd_ms": 42.1,
+        "vo2_max": 47.3,
+        "skin_temp_relative_c": -0.3,
     }
 
-    # The method is write_daily_data which internally converts
-    # We'll test this via the public interface
-    assert data["steps"] == 8543
-    assert data["distance"] == 6.52
-    assert data["heart_rate"]["resting"] == 62
+    captured = []
+    writer._send_metrics = lambda metrics: bool(captured.extend(metrics) or True)
+
+    assert writer.write_daily_data(data) is True
+
+    rendered = "".join(captured)
+    assert 'fitbit_steps_total{device="fitbit_air",user="default"} 8543 1735084800000' in rendered
+    assert 'fitbit_resting_heart_rate_bpm{device="fitbit_air",user="default"} 62' in rendered
+    assert (
+        'fitbit_heart_rate_zone_minutes{device="fitbit_air",user="default",zone="fat_burn"} 180'
+        in rendered
+    )
+    assert (
+        'fitbit_heart_rate_zone_calories{device="fitbit_air",user="default",zone="fat_burn"} 200.0'
+        in rendered
+    )
+    assert 'fitbit_sleep_minutes_total{device="fitbit_air",user="default"} 432' in rendered
+    assert (
+        'fitbit_sleep_stage_minutes{device="fitbit_air",stage="deep",user="default"} 80' in rendered
+    )
+    assert 'fitbit_spo2_avg_percent{device="fitbit_air",user="default"} 96.5' in rendered
+    assert 'fitbit_breathing_rate_bpm{device="fitbit_air",user="default"} 14.5' in rendered
+    assert 'fitbit_hrv_rmssd_ms{device="fitbit_air",user="default"} 42.1' in rendered
+    assert 'fitbit_vo2_max{device="fitbit_air",user="default"} 47.3' in rendered
+    assert 'fitbit_temp_skin_relative_celsius{device="fitbit_air",user="default"} -0.3' in rendered
 
 
 def test_timestamp_conversion(writer):
@@ -117,9 +141,8 @@ def test_write_daily_data_success(writer):
             "fairly_active": 20,
             "very_active": 30,
         },
-        "floors": 12,
-        "elevation": 30.48,
-        "heart_rate": {"resting": 62, "zones": []},
+        "resting_heart_rate": 62,
+        "heart_rate_zones": [],
     }
 
     result = writer.write_daily_data(data)
@@ -146,9 +169,8 @@ def test_write_daily_data_failure(writer):
             "fairly_active": 0,
             "very_active": 0,
         },
-        "floors": 0,
-        "elevation": 0,
-        "heart_rate": {"resting": 60, "zones": []},
+        "resting_heart_rate": 60,
+        "heart_rate_zones": [],
     }
 
     result = writer.write_daily_data(data)
@@ -182,18 +204,17 @@ def test_test_connection_failure(writer):
 
 @responses.activate
 def test_write_device_info_with_battery_level(writer):
-    """Test device info write with exact batteryLevel field."""
+    """Test device info write from a normalized device record."""
     test_endpoint = "https://victoria-metrics.example.com/api/v1/import/prometheus"
     responses.add(responses.POST, test_endpoint, status=204)
     writer.endpoint = test_endpoint
 
     devices = [
         {
-            "id": "12345",
-            "deviceVersion": "Charge 6",
-            "batteryLevel": 85,
-            "battery": "High",  # Should be ignored when batteryLevel is present
-            "lastSyncTime": "2024-01-15T10:30:00.000Z",
+            "device_id": "12345",
+            "device_type": "Charge 6",
+            "battery_percent": 85,
+            "last_sync": datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         }
     ]
 
@@ -211,18 +232,18 @@ def test_write_device_info_with_battery_level(writer):
 
 
 @responses.activate
-def test_write_device_info_fallback_to_text_battery(writer):
-    """Test device info falls back to text battery when batteryLevel missing."""
+def test_write_device_info_battery_percent_is_written_verbatim(writer):
+    """Test an already-normalized battery percentage is written as-is."""
     test_endpoint = "https://victoria-metrics.example.com/api/v1/import/prometheus"
     responses.add(responses.POST, test_endpoint, status=204)
     writer.endpoint = test_endpoint
 
     devices = [
         {
-            "id": "67890",
-            "deviceVersion": "Inspire 3",
-            "battery": "Medium",  # No batteryLevel field
-            "lastSyncTime": "2024-01-15T10:30:00.000Z",
+            "device_id": "67890",
+            "device_type": "Inspire 3",
+            "battery_percent": 50.0,
+            "last_sync": datetime(2024, 1, 15, 10, 30, tzinfo=UTC),
         }
     ]
 
@@ -234,5 +255,6 @@ def test_write_device_info_fallback_to_text_battery(writer):
     # Verify the request body contains parsed battery level
     request_body = responses.calls[0].request.body
     assert b"fitbit_device_battery_percent" in request_body
-    assert b"50" in request_body  # "Medium" maps to 50%
+    assert b"50.0" in request_body
     assert b'device_id="67890"' in request_body
+    assert b"fitbit_device_last_sync_timestamp" in request_body

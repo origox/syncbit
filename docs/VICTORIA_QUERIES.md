@@ -38,7 +38,7 @@ The intraday implementation writes the following metrics:
 
 All metrics include labels:
 - `user` - Fitbit user ID (from `FITBIT_USER_ID` env var)
-- `device` - Device type (currently "charge6")
+- `device` - Device label from `DEVICE_LABEL` (default "fitbit_air"; data written before the Google Health migration uses "charge6")
 
 ## Basic Queries
 
@@ -52,7 +52,7 @@ fitbit_heart_rate_intraday{user="default"}
 fitbit_steps_intraday{user="youruser"}
 
 # Intraday calories for specific device
-fitbit_calories_intraday{device="charge6"}
+fitbit_calories_intraday{device="fitbit_air"}
 ```
 
 ### Time Range Selection

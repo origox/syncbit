@@ -1,11 +1,12 @@
 """Tests for sync scheduler."""
 
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 import pytest
 from freezegun import freeze_time
 
-from src.fitbit_collector import RateLimitError
+from src.collector import RateLimitError
 from src.scheduler import SyncScheduler
 
 
@@ -49,210 +50,250 @@ def scheduler(mock_auth, mock_collector, mock_writer, mock_state):
     return SyncScheduler()
 
 
-@freeze_time("2024-01-15 12:00:00")
-def test_sync_data_success(scheduler, mock_collector, mock_writer, mock_state):
-    """Test successful data sync."""
-    # Setup mocks - syncs both yesterday and today
-    yesterday_data = {"date": "2024-01-14", "steps": 10000}
-    today_data = {"date": "2024-01-15", "steps": 5000}
-    mock_collector.get_daily_data.side_effect = [yesterday_data, today_data]
+def day(date: str, steps: int = 1000) -> dict:
+    return {"date": date, "steps": steps}
 
-    # Execute
+
+def days(start: str, count: int) -> list[dict]:
+    first = datetime.strptime(start, "%Y-%m-%d")
+    return [day((first + timedelta(days=i)).strftime("%Y-%m-%d")) for i in range(count)]
+
+
+def fetched_ranges(mock_collector) -> list[tuple[str, str]]:
+    return [
+        (c.args[0].strftime("%Y-%m-%d"), c.args[1].strftime("%Y-%m-%d"))
+        for c in mock_collector.get_historical_data.call_args_list
+    ]
+
+
+# --- sync_data ---
+
+
+@freeze_time("2024-01-15 12:00:00")
+def test_sync_data_fetches_yesterday_and_today_in_one_request(
+    scheduler, mock_collector, mock_writer, mock_state
+):
+    mock_collector.get_historical_data.return_value = [day("2024-01-14"), day("2024-01-15")]
+
     scheduler.sync_data()
 
-    # Verify - should call for both yesterday and today
-    assert mock_collector.get_daily_data.call_count == 2
-
-    # Verify both days were written
+    assert fetched_ranges(mock_collector) == [("2024-01-14", "2024-01-15")]
     assert mock_writer.write_daily_data.call_count == 2
-
     # Only yesterday's date updates state (today is incomplete)
     mock_state.update_last_sync.assert_called_once_with("2024-01-14")
 
 
 @freeze_time("2024-01-15 12:00:00")
+def test_sync_data_without_today(scheduler, mock_collector, mock_state):
+    mock_collector.get_historical_data.return_value = [day("2024-01-14")]
+
+    with patch("src.scheduler.Config.INCLUDE_TODAY_DATA", False):
+        scheduler.sync_data()
+
+    assert fetched_ranges(mock_collector) == [("2024-01-14", "2024-01-14")]
+
+
+@freeze_time("2024-01-15 12:00:00")
 def test_sync_data_write_failure(scheduler, mock_collector, mock_writer, mock_state):
-    """Test sync when writer fails."""
-    mock_data = {"date": "2024-01-14", "steps": 5000}
-    mock_collector.get_daily_data.return_value = mock_data
+    """State must not advance past a day that was not written."""
+    mock_collector.get_historical_data.return_value = [day("2024-01-14"), day("2024-01-15")]
     mock_writer.write_daily_data.return_value = False
 
     scheduler.sync_data()
 
-    # State should not be updated on write failure
     mock_state.update_last_sync.assert_not_called()
 
 
 @freeze_time("2024-01-15 12:00:00")
 def test_sync_data_rate_limit_retry(scheduler, mock_collector, mock_writer, mock_state):
-    """Test sync retries on rate limit."""
-    yesterday_data = {"date": "2024-01-14", "steps": 10000}
-    today_data = {"date": "2024-01-15", "steps": 5000}
-
-    # First call raises rate limit, second succeeds, third for today
-    mock_collector.get_daily_data.side_effect = [
+    mock_collector.get_historical_data.side_effect = [
         RateLimitError("Rate limited", retry_after=1),
-        yesterday_data,
-        today_data,
+        [day("2024-01-14"), day("2024-01-15")],
     ]
 
-    with patch("time.sleep"):  # Don't actually sleep in tests
+    with patch("time.sleep") as sleep:
         scheduler.sync_data()
 
-    # Should have retried yesterday and then synced today
-    assert mock_collector.get_daily_data.call_count == 3
+    sleep.assert_called_once_with(1)
+    assert mock_collector.get_historical_data.call_count == 2
     assert mock_writer.write_daily_data.call_count == 2
     mock_state.update_last_sync.assert_called_once_with("2024-01-14")
 
 
 @freeze_time("2024-01-15 12:00:00")
-def test_sync_data_rate_limit_max_retries(scheduler, mock_collector):
-    """Test sync stops after max retries."""
-    # Always raise rate limit
-    mock_collector.get_daily_data.side_effect = RateLimitError("Rate limited", retry_after=1)
+def test_sync_data_rate_limit_max_retries(scheduler, mock_collector, mock_writer):
+    mock_collector.get_historical_data.side_effect = RateLimitError("Rate limited", retry_after=1)
 
     with patch("time.sleep"):
         scheduler.sync_data()
 
-    # Should try 3 times for yesterday (initial + 2 retries) and 3 times for today
-    assert mock_collector.get_daily_data.call_count == 6
+    # Initial attempt + 2 retries
+    assert mock_collector.get_historical_data.call_count == 3
+    mock_writer.write_daily_data.assert_not_called()
+
+
+@freeze_time("2024-01-15 12:00:00")
+def test_sync_data_exhausted_quota_does_not_wait(scheduler, mock_collector):
+    mock_collector.get_historical_data.side_effect = RateLimitError(
+        "Rate limited", retry_after=60, quota_reset=900, remaining=0
+    )
+
+    with patch("time.sleep") as sleep:
+        scheduler.sync_data()
+
+    sleep.assert_not_called()
+    assert mock_collector.get_historical_data.call_count == 1
 
 
 @freeze_time("2024-01-15 12:00:00")
 def test_sync_data_unexpected_error(scheduler, mock_collector, mock_writer, mock_state):
-    """Test sync handles unexpected errors."""
-    mock_collector.get_daily_data.side_effect = Exception("Unexpected error")
+    mock_collector.get_historical_data.side_effect = Exception("Unexpected error")
 
     # Should not raise
     scheduler.sync_data()
 
-    # State should not be updated
     mock_state.update_last_sync.assert_not_called()
+
+
+# --- backfill ---
 
 
 @freeze_time("2024-01-15 12:00:00")
 def test_backfill_no_state_no_config(scheduler, mock_state, mock_collector):
-    """Test backfill when no state and no config start date."""
     mock_state.get_last_successful_date.return_value = None
     mock_collector.get_first_available_date.return_value = None
 
     with patch("src.config.Config.BACKFILL_START_DATE", None):
         scheduler.backfill_data()
 
-    # Should not attempt to fetch data
-    mock_collector.get_daily_data.assert_not_called()
+    mock_collector.get_historical_data.assert_not_called()
 
 
 @freeze_time("2024-01-15 12:00:00")
 def test_backfill_from_last_synced(scheduler, mock_state, mock_collector, mock_writer):
-    """Test backfill continues from last synced date."""
     mock_state.get_last_successful_date.return_value = "2024-01-10"
+    mock_collector.get_historical_data.return_value = days("2024-01-11", 4)
+    mock_writer.write_multiple_days.return_value = (4, 0)
 
-    # Mock data for 4 days: Jan 11, 12, 13, 14
-    mock_collector.get_daily_data.side_effect = [
-        {"date": "2024-01-11", "steps": 1000},
-        {"date": "2024-01-12", "steps": 2000},
-        {"date": "2024-01-13", "steps": 3000},
-        {"date": "2024-01-14", "steps": 4000},
-    ]
+    scheduler.backfill_data()
 
-    with patch("time.sleep"):
-        scheduler.backfill_data()
-
-    # Should fetch 4 days of data
-    assert mock_collector.get_daily_data.call_count == 4
+    assert fetched_ranges(mock_collector) == [("2024-01-11", "2024-01-14")]
+    mock_state.update_last_sync.assert_called_once_with("2024-01-14")
 
 
 @freeze_time("2024-01-15 12:00:00")
-def test_backfill_from_config(scheduler, mock_state, mock_collector, mock_writer):
-    """Test backfill uses last synced state to determine start."""
-    # When state exists, should use it
-    mock_state.get_last_successful_date.return_value = "2024-01-12"
+def test_backfill_has_no_fixed_delays(scheduler, mock_state, mock_collector, mock_writer):
+    """Speed comes from removing the Fitbit-era 30s per-date sleeps."""
+    mock_state.get_last_successful_date.return_value = "2023-11-30"
+    mock_collector.get_historical_data.side_effect = lambda s, e: days(
+        s.strftime("%Y-%m-%d"), (e.date() - s.date()).days + 1
+    )
+    mock_writer.write_multiple_days.side_effect = lambda records: (len(records), 0)
 
-    # Mock data for 2 days: Jan 13, 14
-    mock_collector.get_daily_data.side_effect = [
-        {"date": "2024-01-13", "steps": 1000},
-        {"date": "2024-01-14", "steps": 2000},
-    ]
-
-    with patch("time.sleep"):
+    with patch("time.sleep") as sleep:
         scheduler.backfill_data()
 
-    # Should fetch 2 days of data (13th and 14th)
-    assert mock_collector.get_daily_data.call_count == 2
+    sleep.assert_not_called()
+
+
+@freeze_time("2024-01-15 12:00:00")
+def test_backfill_is_chunked_and_saves_progress_per_chunk(
+    scheduler, mock_state, mock_collector, mock_writer
+):
+    mock_state.get_last_successful_date.return_value = "2023-12-14"
+    mock_collector.get_historical_data.side_effect = lambda s, e: days(
+        s.strftime("%Y-%m-%d"), (e.date() - s.date()).days + 1
+    )
+    mock_writer.write_multiple_days.side_effect = lambda records: (len(records), 0)
+
+    scheduler.backfill_data()
+
+    assert fetched_ranges(mock_collector) == [
+        ("2023-12-15", "2023-12-28"),
+        ("2023-12-29", "2024-01-11"),
+        ("2024-01-12", "2024-01-14"),
+    ]
+    assert [c.args[0] for c in mock_state.update_last_sync.call_args_list] == [
+        "2023-12-28",
+        "2024-01-11",
+        "2024-01-14",
+    ]
 
 
 @freeze_time("2024-01-15 12:00:00")
 def test_backfill_no_data_needed(scheduler, mock_state, mock_collector):
-    """Test backfill when already up to date."""
-    # Last synced is yesterday
     mock_state.get_last_successful_date.return_value = "2024-01-14"
 
     scheduler.backfill_data()
 
-    # Should not attempt to fetch
-    mock_collector.get_daily_data.assert_not_called()
+    mock_collector.get_historical_data.assert_not_called()
 
 
 @freeze_time("2024-01-15 12:00:00")
-def test_backfill_handles_rate_limit(scheduler, mock_state, mock_collector, mock_writer):
-    """Test backfill handles rate limiting."""
+def test_backfill_retries_chunk_after_rate_limit(
+    scheduler, mock_state, mock_collector, mock_writer
+):
     mock_state.get_last_successful_date.return_value = "2024-01-12"
-
-    # First call succeeds, second rate limited, third succeeds
-    mock_collector.get_daily_data.side_effect = [
-        {"date": "2024-01-13", "steps": 1000},
-        RateLimitError("Rate limited", retry_after=1),
-        {"date": "2024-01-13", "steps": 1000},  # Retry same date
-        {"date": "2024-01-14", "steps": 2000},
+    mock_collector.get_historical_data.side_effect = [
+        RateLimitError("Rate limited", retry_after=7),
+        days("2024-01-13", 2),
     ]
+    mock_writer.write_multiple_days.return_value = (2, 0)
 
-    with patch("time.sleep"):
+    with patch("time.sleep") as sleep:
         scheduler.backfill_data()
 
-    # Should retry and complete (1 success + rate limit + retry + 1 more = 4 calls)
-    assert mock_collector.get_daily_data.call_count >= 2
+    sleep.assert_called_once_with(7)
+    assert fetched_ranges(mock_collector) == [("2024-01-13", "2024-01-14")] * 2
+    mock_state.update_last_sync.assert_called_once_with("2024-01-14")
 
 
 @freeze_time("2024-01-15 12:00:00")
 def test_backfill_stops_on_consecutive_rate_limits(
     scheduler, mock_state, mock_collector, mock_writer
 ):
-    """Test backfill stops after consecutive rate limits."""
     mock_state.get_last_successful_date.return_value = "2024-01-12"
-
-    # First call succeeds, then 3 consecutive rate limits
-    mock_collector.get_daily_data.side_effect = [
-        {"date": "2024-01-13", "steps": 1000},
-        RateLimitError("Rate limited", retry_after=1),
-        RateLimitError("Rate limited", retry_after=1),
-        RateLimitError("Rate limited", retry_after=1),
-    ]
+    mock_collector.get_historical_data.side_effect = RateLimitError("Rate limited", retry_after=1)
 
     with patch("time.sleep"):
         scheduler.backfill_data()
 
-    # Should stop after 3 consecutive failures
-    assert mock_collector.get_daily_data.call_count >= 2
+    assert mock_collector.get_historical_data.call_count == 3
+    mock_state.update_last_sync.assert_not_called()
 
 
 @freeze_time("2024-01-15 12:00:00")
-def test_backfill_saves_partial_progress_on_error(
+def test_backfill_stops_without_advancing_state_on_write_failure(
     scheduler, mock_state, mock_collector, mock_writer
 ):
-    """Test backfill saves progress even when error occurs."""
-    mock_state.get_last_successful_date.return_value = "2024-01-12"
+    """Advancing past unwritten days would lose them permanently."""
+    mock_state.get_last_successful_date.return_value = "2023-12-14"
+    mock_collector.get_historical_data.side_effect = lambda s, e: days(
+        s.strftime("%Y-%m-%d"), (e.date() - s.date()).days + 1
+    )
+    mock_writer.write_multiple_days.return_value = (10, 4)
 
-    # Fetch 2 days successfully, then error
-    mock_collector.get_daily_data.side_effect = [
-        {"date": "2024-01-13", "steps": 1000},
-        {"date": "2024-01-14", "steps": 2000},
+    scheduler.backfill_data()
+
+    assert mock_collector.get_historical_data.call_count == 1
+    mock_state.update_last_sync.assert_not_called()
+
+
+@freeze_time("2024-01-15 12:00:00")
+def test_backfill_skips_chunk_after_repeated_errors(
+    scheduler, mock_state, mock_collector, mock_writer
+):
+    mock_state.get_last_successful_date.return_value = "2023-12-28"
+    mock_collector.get_historical_data.side_effect = [
         Exception("Network error"),
+        Exception("Network error"),
+        Exception("Network error"),
+        days("2024-01-12", 3),
     ]
+    mock_writer.write_multiple_days.return_value = (3, 0)
 
     with patch("time.sleep"):
         scheduler.backfill_data()
 
-    # Should have attempted to write before error
-    # (May or may not be called depending on when error occurs)
-    assert mock_collector.get_daily_data.call_count >= 2
+    assert fetched_ranges(mock_collector)[-1] == ("2024-01-12", "2024-01-14")
+    mock_state.update_last_sync.assert_called_once_with("2024-01-14")

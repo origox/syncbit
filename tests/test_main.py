@@ -10,6 +10,16 @@ import main
 from src.config import Config
 
 
+@pytest.fixture
+def fitbit_provider(monkeypatch):
+    monkeypatch.setattr(Config, "HEALTH_PROVIDER", "fitbit")
+
+
+@pytest.fixture
+def google_provider(monkeypatch):
+    monkeypatch.setattr(Config, "HEALTH_PROVIDER", "google")
+
+
 def test_setup_logging_stdout_only(monkeypatch, tmp_path):
     """Test setup_logging with only stdout handler when data dir doesn't exist."""
     # Use non-existent data dir
@@ -70,6 +80,7 @@ def test_setup_logging_levels(tmp_path):
         Config.DATA_DIR = original_data_dir
 
 
+@pytest.mark.usefixtures("fitbit_provider")
 @patch("main.FitbitAuth")
 def test_authorize_already_authorized_decline(mock_auth_class, monkeypatch):
     """Test authorize when already authorized and user declines re-auth."""
@@ -87,6 +98,7 @@ def test_authorize_already_authorized_decline(mock_auth_class, monkeypatch):
     mock_auth.authorize.assert_not_called()
 
 
+@pytest.mark.usefixtures("fitbit_provider")
 @patch("main.FitbitAuth")
 def test_authorize_already_authorized_accept(mock_auth_class, monkeypatch):
     """Test authorize when already authorized and user accepts re-auth."""
@@ -104,6 +116,7 @@ def test_authorize_already_authorized_accept(mock_auth_class, monkeypatch):
     mock_auth.authorize.assert_called_once()
 
 
+@pytest.mark.usefixtures("fitbit_provider")
 @patch("main.FitbitAuth")
 def test_authorize_not_authorized(mock_auth_class):
     """Test authorize when not yet authorized."""
@@ -118,6 +131,7 @@ def test_authorize_not_authorized(mock_auth_class):
     mock_auth.authorize.assert_called_once()
 
 
+@pytest.mark.usefixtures("fitbit_provider")
 @patch("main.FitbitAuth")
 def test_authorize_failure(mock_auth_class):
     """Test authorize handles authorization failure."""
@@ -132,16 +146,52 @@ def test_authorize_failure(mock_auth_class):
     assert exc_info.value.code == 1
 
 
+@patch("main.build_provider")
 @patch("main.SyncScheduler")
-def test_run_sync(mock_scheduler_class):
-    """Test run_sync starts the scheduler."""
+def test_run_sync(mock_scheduler_class, mock_build_provider):
+    """Test run_sync starts the scheduler with the configured provider."""
     mock_scheduler = MagicMock()
     mock_scheduler_class.return_value = mock_scheduler
+    auth, collector = MagicMock(), MagicMock()
+    mock_build_provider.return_value = (auth, collector)
 
     main.run_sync()
 
-    mock_scheduler_class.assert_called_once()
+    mock_scheduler_class.assert_called_once_with(auth=auth, collector=collector)
     mock_scheduler.start.assert_called_once()
+
+
+@pytest.mark.usefixtures("google_provider")
+@patch("main.GoogleAuth")
+def test_authorize_google_passes_manual_flag(mock_auth_class):
+    mock_auth = MagicMock()
+    mock_auth.is_authorized.return_value = False
+    mock_auth_class.return_value = mock_auth
+
+    main.authorize(manual=True)
+
+    mock_auth.authorize.assert_called_once_with(manual=True)
+
+
+@pytest.mark.usefixtures("google_provider")
+@patch("main.GoogleHealthCollector")
+@patch("main.GoogleAuth")
+def test_build_provider_defaults_to_google(mock_auth_class, mock_collector_class):
+    auth, collector = main.build_provider()
+
+    assert auth is mock_auth_class.return_value
+    mock_collector_class.assert_called_once_with(auth)
+    assert collector is mock_collector_class.return_value
+
+
+@pytest.mark.usefixtures("fitbit_provider")
+@patch("main.FitbitCollector")
+@patch("main.FitbitAuth")
+def test_build_provider_fitbit(mock_auth_class, mock_collector_class):
+    auth, collector = main.build_provider()
+
+    assert auth is mock_auth_class.return_value
+    mock_collector_class.assert_called_once_with(auth)
 
 
 @patch("main.run_sync")
@@ -169,7 +219,7 @@ def test_main_authorize_flag(mock_validate, mock_setup_logging, mock_authorize):
 
     mock_validate.assert_called_once()
     mock_setup_logging.assert_called_once_with("INFO")
-    mock_authorize.assert_called_once()
+    mock_authorize.assert_called_once_with(manual=False)
 
 
 @patch("main.run_sync")
