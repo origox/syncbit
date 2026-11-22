@@ -12,10 +12,11 @@ WORKDIR /build
 # Copy dependency files
 COPY requirements.txt ./
 
-# Install Python dependencies
+# Install Python dependencies into an isolated prefix, so the runtime stage
+# can copy them without hard-coding the Python version in a site-packages path.
 # Upgrade pip, wheel, setuptools to address known CVEs before installing deps
 RUN pip install --no-cache-dir --upgrade "pip>=26.1" "wheel>=0.46.2" "setuptools>=82.0.1" && \
-    pip install --no-cache-dir -r requirements.txt
+    pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 
 # Runtime stage: Minimal production image
@@ -42,9 +43,8 @@ RUN mkdir -p /app/data && \
 RUN mkdir -p /run/secrets && \
     chown -R syncbit:syncbit /run/secrets
 
-# Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+# Copy Python packages (and their console scripts) from builder
+COPY --from=builder /install /usr/local
 
 # Upgrade pip in runtime image to remove the base image's old pip dist-info (CVE-2025-8869, CVE-2026-3219, CVE-2026-6357)
 RUN pip install --no-cache-dir --upgrade "pip>=26.1"
