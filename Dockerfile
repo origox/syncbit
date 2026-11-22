@@ -46,8 +46,11 @@ RUN mkdir -p /run/secrets && \
 # Copy Python packages (and their console scripts) from builder
 COPY --from=builder /install /usr/local
 
-# Upgrade pip in runtime image to remove the base image's old pip dist-info (CVE-2025-8869, CVE-2026-3219, CVE-2026-6357)
-RUN pip install --no-cache-dir --upgrade "pip>=26.1"
+# Upgrade pip and setuptools in the runtime image to replace the base image's
+# old copies (pip: CVE-2025-8869, CVE-2026-3219, CVE-2026-6357; setuptools:
+# CVE-2025-47273, CVE-2026-59890). The builder's upgraded copies are not
+# carried over, since only /install is copied from it.
+RUN pip install --no-cache-dir --upgrade "pip>=26.1" "setuptools>=83.0.0"
 
 # Copy application code
 COPY --chown=syncbit:syncbit src/ /app/src/
