@@ -78,12 +78,15 @@ def test_config_validation_success(tmp_path, monkeypatch):
     """Test validation passes with all required variables."""
     monkeypatch.setenv("DATA_DIR", str(tmp_path))
 
-    # Reload config values
-    Config.FITBIT_CLIENT_ID = "test_client_id"
-    Config.FITBIT_CLIENT_SECRET = "test_client_secret"
-    Config.VICTORIA_USER = "test_user"
-    Config.VICTORIA_PASSWORD = "test_password"
-    Config.DATA_DIR = tmp_path
+    # Set every value validate() requires for the default provider explicitly,
+    # so the result does not depend on a developer's local .env.
+    monkeypatch.setattr(Config, "HEALTH_PROVIDER", "google")
+    monkeypatch.setattr(Config, "GOOGLE_CLIENT_ID", "test_client_id")
+    monkeypatch.setattr(Config, "GOOGLE_CLIENT_SECRET", "test_client_secret")
+    monkeypatch.setattr(Config, "VICTORIA_ENDPOINT", "http://victoria.test")
+    monkeypatch.setattr(Config, "VICTORIA_USER", "test_user")
+    monkeypatch.setattr(Config, "VICTORIA_PASSWORD", "test_password")
+    monkeypatch.setattr(Config, "DATA_DIR", tmp_path)
 
     # Should not raise
     Config.validate()
