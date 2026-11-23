@@ -278,7 +278,7 @@ The application automatically detects the environment:
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `INCLUDE_TODAY_DATA` | Sync today's data (incomplete but current) | `true` |
+| `INCLUDE_TODAY_DATA` | Sync today's data (incomplete but current), daily and intraday | `true` |
 
 #### Metric Collection Toggles
 
@@ -313,6 +313,7 @@ All metrics enabled by default. Set to `false` to disable specific metrics:
 4. **Scheduled Sync**:
    - Collects yesterday's complete data (fully processed)
    - Optionally collects today's data (incomplete but current, if `INCLUDE_TODAY_DATA=true`)
+   - Intraday: re-fetches yesterday, plus today when `INCLUDE_TODAY_DATA=true`
    - Device info collected once per sync cycle
 5. **Metrics Export**: Converts Fitbit data to Prometheus format with labels
 6. **Victoria Metrics**: POSTs metrics with authentication

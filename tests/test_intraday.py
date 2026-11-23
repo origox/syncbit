@@ -52,6 +52,7 @@ def mock_config():
         mock.BACKFILL_START_DATE = "2024-01-01"
         mock.INTRADAY_BACKFILL_DAYS = 0
         mock.COLLECT_DEVICE_INFO = False
+        mock.INCLUDE_TODAY_DATA = False
         yield mock
 
 
@@ -279,3 +280,45 @@ def test_sync_intraday_no_data(scheduler, mock_collector, mock_writer, mock_conf
 
     # Should not write if no data
     mock_writer.write_intraday_data.assert_not_called()
+
+
+@freeze_time("2024-01-10 12:00:00")
+def test_sync_intraday_includes_today(scheduler, mock_collector, mock_writer, mock_config):
+    """With INCLUDE_TODAY_DATA, intraday sync covers yesterday and today."""
+    mock_config.INCLUDE_TODAY_DATA = True
+    mock_collector.get_intraday_data.side_effect = lambda d: {
+        "date": d.strftime("%Y-%m-%d"),
+        "resources": {"steps": {"dataset": [{"time": "00:00:00", "value": 1}]}},
+    }
+
+    scheduler.sync_intraday_data()
+
+    called = [c[0][0].date() for c in mock_collector.get_intraday_data.call_args_list]
+    assert called == [datetime(2024, 1, 9).date(), datetime(2024, 1, 10).date()]
+    assert mock_writer.write_intraday_data.call_count == 2
+
+
+@freeze_time("2024-01-10 12:00:00")
+def test_sync_intraday_today_still_runs_when_yesterday_empty(
+    scheduler, mock_collector, mock_writer, mock_config
+):
+    """An empty yesterday does not skip today."""
+    mock_config.INCLUDE_TODAY_DATA = True
+    today = {"date": "2024-01-10", "resources": {"steps": {"dataset": []}}}
+    mock_collector.get_intraday_data.side_effect = [None, today]
+
+    scheduler.sync_intraday_data()
+
+    mock_writer.write_intraday_data.assert_called_once_with(today)
+
+
+@freeze_time("2024-01-10 12:00:00")
+def test_sync_intraday_rate_limit_stops_the_run(scheduler, mock_collector, mock_config):
+    """A rate limit on yesterday does not go on to request today."""
+    mock_config.INCLUDE_TODAY_DATA = True
+    mock_collector.get_intraday_data.side_effect = RateLimitError("Rate limited", retry_after=60)
+
+    with patch("time.sleep"):
+        scheduler.sync_intraday_data()
+
+    mock_collector.get_intraday_data.assert_called_once()
