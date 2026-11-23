@@ -528,24 +528,28 @@ class SyncScheduler:
 
         logger.info("Starting intraday data synchronization...")
 
+        # Yesterday is the most recent complete day; it is re-fetched because
+        # a device can sync late. Today is partial but current, gated by the
+        # same switch as the daily sync.
+        now = datetime.now()
+        days = [now - timedelta(days=1)]
+        if Config.INCLUDE_TODAY_DATA:
+            days.append(now)
+
         try:
-            # Get yesterday's data (most recent complete day)
-            yesterday = datetime.now() - timedelta(days=1)
+            for day in days:
+                data = self.collector.get_intraday_data(day)
 
-            # Collect intraday data
-            data = self.collector.get_intraday_data(yesterday)
+                if not data or not data.get("resources"):
+                    logger.info(f"No intraday data collected for {day.strftime('%Y-%m-%d')}")
+                    continue
 
-            if not data or not data.get("resources"):
-                logger.info("No intraday data collected")
-                return
-
-            # Write to Victoria Metrics
-            success = self.writer.write_intraday_data(data)
-
-            if success:
-                logger.info(f"Successfully synced intraday data for {data['date']}")
-            else:
-                logger.error("Failed to write intraday data to Victoria Metrics")
+                if self.writer.write_intraday_data(data):
+                    logger.info(f"Successfully synced intraday data for {data['date']}")
+                else:
+                    logger.error(
+                        f"Failed to write intraday data for {data['date']} to Victoria Metrics"
+                    )
 
         except RateLimitError as e:
             wait_time = e.retry_after if hasattr(e, "retry_after") else 60
