@@ -1,3 +1,15 @@
+## [4.1.1](https://github.com/origox/syncbit/compare/v4.1.0...v4.1.1) (2026-11-23)
+
+
+### Bug Fixes
+
+* **collector:** stamp today's totals with the sync time again ([#70](https://github.com/origox/syncbit/issues/70)) ([7991fcd](https://github.com/origox/syncbit/commit/7991fcd9f3c9583e1ee7870b24bb5ee88ed3c627))
+
+
+### Documentation
+
+* rewrite docs for the Google Health API and use synthetic test fixtures ([#69](https://github.com/origox/syncbit/issues/69)) ([6f1f3d1](https://github.com/origox/syncbit/commit/6f1f3d18258cdf562028cfe02a013431b986347b))
+
 ## [4.1.0](https://github.com/origox/syncbit/compare/v4.0.0...v4.1.0) (2026-11-23)
 
 
