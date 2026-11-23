@@ -71,7 +71,8 @@ class DailyRecord(TypedDict, total=False):
     in particular are frequently missing).
 
     `timestamp` is unix seconds and is the timestamp applied to every metric
-    derived from this record.
+    derived from this record: the sync time for today's partial record, so each
+    sync adds a point, and the day's last second for a completed day.
     """
 
     date: str  # YYYY-MM-DD
