@@ -1,3 +1,10 @@
+## [4.1.0](https://github.com/origox/syncbit/compare/v4.0.0...v4.1.0) (2026-11-23)
+
+
+### Features
+
+* **intraday:** sync today's intraday data when INCLUDE_TODAY_DATA is set ([#68](https://github.com/origox/syncbit/issues/68)) ([8687269](https://github.com/origox/syncbit/commit/8687269bfd707b1e64c7e2d396a86e1086a904ea))
+
 ## [4.0.0](https://github.com/origox/syncbit/compare/v3.9.0...v4.0.0) (2026-11-22)
 
 
