@@ -1,405 +1,258 @@
 # SyncBit Architecture
 
-This document describes the technical architecture, design decisions, and key implementation details of SyncBit.
+This document describes the technical architecture, design decisions and key implementation details of SyncBit.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [System Architecture](#system-architecture)
 - [Component Design](#component-design)
-- [Technical Decisions](#technical-decisions)
 - [Data Flow](#data-flow)
 - [API Constraints](#api-constraints)
+- [Google Health API Quirks](#google-health-api-quirks)
 - [State Management](#state-management)
 - [Error Handling](#error-handling)
+- [Technical Decisions](#technical-decisions)
+- [Security Considerations](#security-considerations)
 - [Future Considerations](#future-considerations)
 
 ## Overview
 
-SyncBit is a Python-based data synchronization service that bridges Fitbit's health tracking data with Victoria Metrics for long-term storage and analysis. The application runs as a long-lived process that periodically polls Fitbit's API and pushes metrics in Prometheus format to Victoria Metrics.
+SyncBit is a long-running Python service that copies Fitbit health data into Victoria Metrics. It reads from the **Google Health API v4**, normalizes the responses into provider-neutral records, and pushes them in Prometheus exposition format.
 
-**Key Requirements:**
-- Reliable data collection without gaps
-- OAuth2 token lifecycle management
-- Fitbit API rate limit compliance (150 requests/hour)
-- Resumable backfill for historical data
+Google shut down the legacy Fitbit Web API on 2026-11-02. Since 4.0.0, Google Health is the default provider (`HEALTH_PROVIDER=google`). The Fitbit implementation remains behind the same interface, but it can no longer fetch data.
+
+**Key requirements:**
+- Reliable collection without gaps, resumable after interruption
+- OAuth2 token lifecycle management (1-hour access tokens)
+- Stay within the per-user quota (300 requests/minute) while backfilling as fast as possible
+- Metric names and labels stable across providers, so dashboards survive the migration
 - Production deployment on Kubernetes
 
 ## System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                         SyncBit App                          │
-│                                                               │
-│  ┌────────────┐  ┌──────────────┐  ┌──────────────────┐    │
-│  │  Scheduler │─▶│   Collector  │─▶│ Victoria Writer  │    │
-│  └─────┬──────┘  └──────┬───────┘  └────────┬─────────┘    │
-│        │                 │                    │               │
-│        │                 │                    │               │
-│  ┌─────▼──────┐  ┌──────▼───────┐  ┌────────▼─────────┐    │
-│  │ Sync State │  │ Fitbit Auth  │  │  HTTP Client     │    │
-│  │   (JSON)   │  │ Token Manager│  │  (requests)      │    │
-│  └────────────┘  └──────────────┘  └──────────────────┘    │
-└───────────────────────────┬─────────────────┬───────────────┘
-                            │                 │
-                    ┌───────▼────────┐ ┌─────▼──────────┐
-                    │   Fitbit API   │ │ Victoria       │
-                    │   (OAuth2)     │ │ Metrics        │
-                    └────────────────┘ └────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                              SyncBit                                 │
+│                                                                      │
+│  ┌────────────┐   HealthDataCollector   ┌──────────────────────────┐ │
+│  │ Scheduler  │────────────────────────▶│ GoogleHealthCollector    │ │
+│  │(APScheduler)│   (src/collector.py)    │  thread pool + throttle  │ │
+│  └─────┬──────┘                          └────────────┬─────────────┘ │
+│        │ DailyRecord / IntradayRecord                 │               │
+│        │ (src/health_types.py)            ┌───────────▼────────────┐  │
+│  ┌─────▼──────────┐  ┌──────────────┐     │ GoogleAuth             │  │
+│  │ VictoriaWriter │  │ SyncState    │     │ PKCE, token refresh,   │  │
+│  │ (Prometheus)   │  │ (JSON file)  │     │ granted-scope tracking │  │
+│  └─────┬──────────┘  └──────────────┘     └───────────┬────────────┘  │
+└────────┼──────────────────────────────────────────────┼──────────────┘
+         │                                              │
+  ┌──────▼──────────┐                         ┌─────────▼──────────┐
+  │ Victoria Metrics│                         │ Google Health API  │
+  │ /api/v1/import/ │                         │ health.googleapis  │
+  │ prometheus      │                         │ .com/v4            │
+  └─────────────────┘                         └────────────────────┘
 ```
+
+The scheduler, writer and sync state depend only on the `HealthDataCollector` protocol and the types in `health_types.py`. Swapping the upstream API means supplying a new collector; nothing downstream changes. This is what made the Fitbit to Google migration a collector-only change from the writer's point of view.
 
 ## Component Design
 
-### 1. Scheduler (`scheduler.py`)
+### 1. Collector interface (`collector.py`, `health_types.py`)
 
-**Purpose:** Orchestrates periodic sync and historical backfill.
+`HealthDataCollector` is a `typing.Protocol` with five methods: `get_daily_data`, `get_historical_data`, `get_first_available_date`, `get_intraday_data` and `get_device_info`. Collectors raise `RateLimitError(retry_after, quota_reset=None, remaining=None)` when throttled and return empty values (not exceptions) when data is merely unavailable.
 
-**Key Design Decisions:**
-- Uses `APScheduler` with `BlockingScheduler` for simplicity
-- Runs backfill once at startup, then schedules periodic sync
-- **Why APScheduler over cron?** 
-  - Better error handling and retry logic
-  - Python-native (no external dependencies)
-  - Easier to test and control programmatically
-  - Works identically in local/Docker/K8s environments
+`DailyRecord` guarantees only `date` and `timestamp`; every metric is optional, because availability varies by device and day. Heart rate zones, activity levels and sleep stages use fixed lower_snake_case names that the writer maps directly onto labels.
 
-**Rate Limit Strategy:**
-- 30-second delay between requests during backfill
-- Tracks consecutive rate limit failures (stops after 3)
-- Writes partial batches before waiting to preserve progress
-- Separate retry logic for scheduled sync (2 retries)
+### 2. Google Health collector (`google_collector.py`)
 
-### 2. Fitbit Collector (`fitbit_collector.py`)
+**Endpoints used:**
 
-**Purpose:** Fetches activity data from Fitbit API.
+| Data | Method | Notes |
+|---|---|---|
+| steps, distance, total-calories, active-minutes, time-in-heart-rate-zone, calories-in-heart-rate-zone | `dataPoints:dailyRollUp` | One point per civil day; range ≤ 14 days for some types |
+| daily-resting-heart-rate, daily-oxygen-saturation, daily-respiratory-rate, daily-heart-rate-variability, daily-vo2-max, daily-sleep-temperature-derivations | `dataPoints` list with a `.date` filter | These types reject `dailyRollUp` |
+| sleep | `dataPoints` list filtered on `civil_end_time` | Sessions summed per wake-up date |
+| intraday steps / distance / calories / heart-rate | `dataPoints:rollUp` with a fixed `windowSize` | One request per resource per day |
+| membership start (backfill start) | `users/me/profile` | |
+| paired devices | `users/me/pairedDevices` | Needs `googlehealth.settings.readonly` (not requested) |
 
-**API Quirks Learned:**
-- **Split domain names:** Auth uses `www.fitbit.com`, API uses `api.fitbit.com`
-- **Rate limits:** 150 req/hour per user, enforced with 429 responses
-- **Retry-After header:** Fitbit returns exact wait time (usually 60 seconds)
-- **User ID:** Can use `-` for authenticated user (simpler than user ID lookup)
-- **Data completeness:** Yesterday's data is most reliable; today's is incomplete
+**Chunking.** `get_historical_data` splits a range into chunks of 14 days, the smallest maximum range among the rollup types. Each chunk costs one request per data type (13 with every metric enabled), regardless of how many days it holds.
 
-**Implementation Notes:**
-```python
-# Custom exception for rate limiting
-class RateLimitError(Exception):
-    def __init__(self, message: str, retry_after: int = None):
-        self.retry_after = retry_after  # Preserve API's wait time
+**Concurrency and throttling.** The requests inside a chunk are independent, so they run on a thread pool (`GOOGLE_MAX_CONCURRENT_REQUESTS`, default 8). Per-request latency is about 1 s, so without parallelism latency, not quota, is the bottleneck. A shared lock-protected throttle spaces request *starts* to `GOOGLE_MAX_REQUESTS_PER_MINUTE` (default 300, the documented per-user quota). Token reads and refreshes are serialized with a separate lock.
+
+**Normalization** keeps Fitbit-era names:
+- Heart rate zones: `LIGHT → out_of_range`, `MODERATE → fat_burn`, `VIGOROUS → cardio`, `PEAK → peak`. This was verified on real data against Active Zone Minutes: MODERATE minutes equal fat-burn AZM, and VIGOROUS/PEAK count double, as AZM does for cardio and peak.
+- Activity levels: `LIGHT → lightly_active`, `MODERATE → fairly_active`, `VIGOROUS → very_active`. There is no sedentary level.
+- Units: distance millimetres → km; durations such as `"80160s"` → minutes; int64 values arrive as JSON strings and are parsed.
+- Skin temperature: nightly minus baseline, matching Fitbit's `nightlyRelative`.
+- Sleep: attributed to the civil date of the interval end (end time + UTC offset), like Fitbit's `dateOfSleep`; all sessions ending that day are summed.
+
+**Optional vs. core metrics.** Failures of the six rollups propagate so the scheduler can retry the whole range. Every other metric is optional: any error except `RateLimitError` is logged and yields no value, so one missing metric never costs a day.
+
+### 3. Google auth (`google_auth.py`)
+
+- Authorization code flow with **PKCE** (S256), `access_type=offline` and `prompt=consent`. Without both, Google issues no refresh token.
+- The PKCE verifier is persisted to `data/pkce_verifier.txt` (mode 600), so the URL and the code exchange can happen in different processes, e.g. generate the URL in a pod and exchange the pasted code later. It is deleted after a successful exchange.
+- Two ways to finish: a callback server on `0.0.0.0:8080`, or `--manual` (paste the `code`).
+- **Refresh token preservation:** Google omits `refresh_token` from refresh responses, so an absent value keeps the stored one.
+- **Reload before refresh:** `refresh_access_token()` re-reads the token file first, so a token written by another process (for example a re-authorization) is picked up.
+- **Granted scopes** from the `scope` field are stored in the token file. Users can untick individual scopes on Google's consent screen, which still yields a valid token; a warning names any missing scope instead of leaving it to surface as 403s later.
+- Access tokens last about 1 hour; expiry is recorded with a 5-minute safety buffer.
+
+### 4. Scheduler (`scheduler.py`)
+
+- `APScheduler` `BlockingScheduler`. At startup: authorization check, Victoria Metrics connection test, daily backfill, optional intraday backfill, one immediate sync, then periodic jobs every `SYNC_INTERVAL_MINUTES`.
+- **Backfill** asks the collector for 14-day ranges (`BACKFILL_CHUNK_DAYS`), writes each chunk, and checkpoints the last date. There are no fixed sleeps.
+- **Scheduled sync** requests yesterday and (if `INCLUDE_TODAY_DATA`) today in one range call. Only complete days advance the sync state. If the last synced date is before yesterday, it first runs a gap backfill.
+- **Intraday sync** re-fetches yesterday and, under the same `INCLUDE_TODAY_DATA` switch, today. An empty day does not skip the next; a `RateLimitError` ends the run.
+- The collector is injected (`SyncScheduler(auth=..., collector=...)`); `main.build_provider()` picks it from `HEALTH_PROVIDER`.
+
+### 5. Victoria writer (`victoria_writer.py`)
+
+```
+fitbit_steps_total{device="fitbit_air",user="default"} 8000 1767225600000
 ```
 
-- Extracts `Retry-After` header value for precise wait times
-- Max 3 retries per request with 5-second delays
-- All requests go through `_make_request()` for consistent error handling
+- Provider-agnostic: maps `DailyRecord` keys onto metric names
+- Millisecond timestamps; daily metrics use local midnight of the record's date
+- Labels: `user` (`FITBIT_USER_ID`), `device` (`DEVICE_LABEL`), plus `type`, `zone`, `stage`, `device_id`, `device_type` where relevant
+- Basic auth; one POST per day of metrics; connection test on startup
 
-### 3. Fitbit Auth (`fitbit_auth.py`)
+### 6. Sync state (`sync_state.py`)
 
-**Purpose:** OAuth2 authorization and token lifecycle management.
-
-**Token Management Strategy:**
-- Access token valid for 8 hours
-- Refresh token used to get new access tokens
-- **Critical fix:** Reload tokens from disk before refresh
-  - Problem: In-memory tokens can be stale if another process updated file
-  - Solution: `refresh_access_token()` calls `_load_tokens()` first
-
-**Authorization Flow:**
-1. Start local HTTP server on port 8080
-2. Open browser to Fitbit authorization URL
-3. User approves access
-4. Fitbit redirects to `http://localhost:8080/callback?code=...`
-5. Exchange code for tokens
-6. Save tokens to `data/fitbit_tokens.json`
-7. Shutdown local server
-
-**Why local callback server?**
-- Simple, works without external infrastructure
-- No need to expose app to internet
-- Standard OAuth2 flow for desktop apps
-
-### 4. Victoria Writer (`victoria_writer.py`)
-
-**Purpose:** Convert Fitbit data to Prometheus format and POST to Victoria Metrics.
-
-**Prometheus Format:**
-```
-fitbit_steps_total{user="origox",device="charge6"} 12543 1735084800000
-```
-
-**Design Notes:**
-- Millisecond timestamps (Victoria Metrics requirement)
-- Labels for user and device (enables multi-user support later)
-- Basic auth for Victoria Metrics endpoint
-- Batch writes to reduce HTTP overhead
-- Test connection on startup to fail fast
-
-### 5. Sync State (`sync_state.py`)
-
-**Purpose:** Track progress for resumable backfill.
-
-**State File Structure:**
 ```json
 {
-  "last_sync": "2025-12-24 11:22:51.791809",
-  "last_successful_date": "2025-12-12"
+  "last_sync": "2026-11-22 19:29:10.192000",
+  "last_successful_date": "2026-11-21",
+  "last_intraday_backfill_date": null
 }
 ```
 
-**Why JSON over database?**
-- Simple, human-readable
-- No external dependencies
-- Sufficient for single-user application
-- Easy to inspect/modify manually
-- Works well with volume mounts in containers
-
-## Technical Decisions
-
-### Why Python 3.11?
-
-- Modern async support (future expansion)
-- Good library ecosystem for HTTP/OAuth
-- Excellent Kubernetes client libraries available
-- Type hints for better IDE support
-- Match with Devbox/Nix packaging
-
-### Why requests over httpx/aiohttp?
-
-- Simpler API for synchronous requests
-- Battle-tested and stable
-- Fitbit API calls are sequential (rate limited anyway)
-- Async complexity not needed for current use case
-
-### Why Devbox over virtualenv/poetry?
-
-- Reproducible dev environments with Nix
-- Declarative dependency management
-- Works across different systems
-- Includes system-level dependencies
-
 ## Data Flow
 
-### Daily Sync Flow
+### Scheduled sync (every 15 minutes)
 
 ```
-1. Scheduler triggers (every 15 minutes)
-2. Calculate yesterday's date
-3. Collector fetches from Fitbit:
-   - Activity summary (/activities/date/{date}.json)
-   - Heart rate (/activities/heart/date/{date}/1d.json)
-4. Parse and combine data
-5. Convert to Prometheus format
-6. POST to Victoria Metrics
-7. Update sync state on success
+1. Gap check: last_successful_date < yesterday → run backfill first
+2. get_device_info()             (403 without settings scope → skipped)
+3. get_historical_data(yesterday, today)
+     └─ 13 concurrent requests under the throttle
+4. write_daily_data() per record
+5. update_last_sync(yesterday) if written and no gap remains
 ```
 
-### Backfill Flow
+### Backfill
 
 ```
-1. On startup, check last successful date
-2. If gap exists (or first run):
-   - Start from BACKFILL_START_DATE or last_successful_date + 1
-   - Process in 10-day batches
-   - For each date:
-     a. Fetch data from Fitbit (30s delay between requests)
-     b. Add to batch
-     c. On batch full (10 days) or end of range:
-        - Write entire batch to Victoria Metrics
-        - Update state to last date in batch
-        - Clear batch
-3. If rate limited 3 times consecutively:
-   - Write partial batch
-   - Save progress
-   - Stop backfill (will resume on next run)
+start = last_successful_date + 1
+     or BACKFILL_START_DATE
+     or profile.membershipStartDate
+for each 14-day chunk up to yesterday:
+    records = collector.get_historical_data(chunk)
+    written, failed = writer.write_multiple_days(records)
+    if failed: stop (state NOT advanced; resume next run)
+    state.update_last_sync(records[-1].date)
 ```
 
-**Why 10-day batches?**
-- Small enough to fit in memory
-- Large enough to reduce Victoria Metrics requests
-- Reasonable checkpoint granularity for resume
-- ~5 minutes per batch at 30s/request rate
+Measured on a live account: a 356-day backfill took 1 min 47 s, and full history (about 4,100 days) about 21 minutes. The Fitbit-era loop (one day per call, 30 s apart) would have needed about 34 hours.
 
 ## API Constraints
 
-### Fitbit Rate Limits
+| Limit | Value | Source |
+|---|---|---|
+| Per-user requests | 300 / minute | Google Health rate-limit guide |
+| Per-project requests | 120,000 / minute, 86.4M / day | Google Health rate-limit guide |
+| `dailyRollUp` / `rollUp` range | 14 days for total-calories, active-minutes, calories-in-heart-rate-zone, heart-rate; 90 days for others | API reference |
+| `list` page size | default 1440, max 10000 (sleep: 25) | API reference |
+| Unverified OAuth app | 100 users | Google Auth Platform |
+| Refresh token, app in *Testing* | expires after 7 days | Google OAuth |
+| Access token | ~1 hour | Google OAuth |
 
-**Limit:** 150 requests per hour per user
+429 responses carry no documented `Retry-After`; SyncBit honours the header if present and otherwise waits 60 s.
 
-**Math:**
-- 150 req/hour = 2.5 req/minute = 1 req per 24 seconds
-- We use 30-second delays for safety margin
-- Backfill: ~120 days × 30s = 1 hour of runtime
-- Each day requires 2 API calls (activity + heart rate)
+## Google Health API Quirks
 
-**Handling Strategy:**
-1. Respect delays proactively (30s between dates)
-2. Parse `Retry-After` header on 429 responses
-3. Implement exponential backoff for other failures
-4. Track consecutive rate limits (stop after 3)
-5. Preserve progress before waiting
+Found by probing a live account with `scripts/probe_google_health.py`. These are pinned in code and tests because they contradict or extend the published reference:
 
-### Token Expiry
-
-- Access tokens expire every 8 hours
-- Refresh tokens are long-lived but can be revoked
-- Must handle refresh during long-running backfills
-- Check token validity before each request batch
+- **Daily-summary filters need a snake_case prefix:** `daily_resting_heart_rate.date >= "2026-11-20"`. The documented camelCase prefix (`dailyRestingHeartRate.date`) is rejected with `INVALID_DATA_POINT_FILTER_DATA_TYPE_RESTRICTION`.
+- **`daily-*` types reject `dailyRollUp`**; use a filtered `list`.
+- **Identity endpoint** is `users/me/identity`, not `users/me:getIdentity`.
+- **Scope errors come in two shapes:** `MISSING_OAUTH_SCOPE` with `any_of_required` (data types) and `ACCESS_TOKEN_SCOPE_INSUFFICIENT` (profile, paired devices).
+- **`rollUp` sometimes omits zero-valued windows.** Repeating the same request alternates between returning all windows and only non-zero ones; totals are identical.
+- **Account linking:** the Google account must have signed in to the Google Health mobile app first, or the API answers `ACCOUNT_NOT_LINKED`.
+- **Raw heart-rate samples** arrive roughly every 2 seconds (about 40k per day), which is why intraday uses `rollUp` windows instead of `list`.
 
 ## State Management
 
-### Why File-Based State?
+File-based JSON in `DATA_DIR`:
 
-1. **Persistence:** Survives container restarts
-2. **Simplicity:** No database to manage
-3. **Debuggability:** Can inspect with `cat`
-4. **Version Control:** Can check into git for initial state
-5. **Kubernetes:** Easy to mount as PVC
+| File | Contents | Written |
+|---|---|---|
+| `google_tokens.json` (600) | access/refresh token, expiry, granted scopes | at authorization and every refresh |
+| `pkce_verifier.txt` (600) | pending PKCE verifier | between URL generation and code exchange |
+| `sync_state.json` | progress | after every written chunk / complete day |
+| `syncbit.log` | log copy | continuously |
 
-### State Location
-
-- Local: `./data/sync_state.json`
-- Docker: `/app/data/sync_state.json` (volume mount)
-- Kubernetes: `/app/data/sync_state.json` (PVC mount)
-
-### Concurrency Considerations
-
-- Single replica deployment (no concurrent writes)
-- File locks not needed for single-writer scenario
-- If scaling needed, would migrate to Redis/PostgreSQL
+Because `google_tokens.json` is rewritten about hourly, it must live on writable storage: a PVC on Kubernetes, never a ConfigMap or Secret. The deployment is single-replica (RWO volume, single writer), so no locking is needed across processes; within the process, threads share the token through a lock.
 
 ## Error Handling
 
-### Retry Strategy by Error Type
+| Error | Handling | Reason |
+|---|---|---|
+| 429 | `RateLimitError` → scheduler waits `retry_after` (default 60 s) and retries the same range; stops after 3 in a row | Quota resets per minute |
+| 401 | Refresh token once, retry | Token invalidated before recorded expiry |
+| 500/502/503/504 | Retry up to 3 times, backoff 2/4/8 s | Recommended by the rate-limit guide |
+| 403 on optional metric | Logged, metric skipped | Usually a missing scope |
+| Other errors on optional metric | Logged, metric skipped | One metric must not cost the day |
+| Core rollup failure | Chunk retried 3 times (5 s apart), then skipped | Avoid a permanent block |
+| Victoria Metrics write failure | Backfill stops **without** advancing state | Advancing would lose those days permanently |
 
-| Error Type | Retry Strategy | Reason |
-|------------|----------------|--------|
-| Rate Limit (429) | Wait `Retry-After`, retry same date | Temporary, predictable |
-| Auth Error (401) | Refresh token, retry once | Token may be expired |
-| Network Error | Retry 3 times with backoff | Transient failures |
-| 5xx Server Error | Retry 3 times with backoff | Fitbit API issues |
-| 4xx Client Error | Log and skip | Bad request, won't succeed |
-| Victoria Write Fail | Log and skip day | Don't block backfill |
+Logging levels: INFO for progress, WARNING for rate limits, retries and missing scopes, ERROR for skipped data.
 
-### Logging Strategy
+## Technical Decisions
 
-- **INFO:** Normal operations, sync results, progress
-- **WARNING:** Rate limits, retries, degraded performance
-- **ERROR:** Failures that skip data, auth problems
-- **DEBUG:** API responses, detailed flow (not in production)
+### Provider-neutral interface
+The writer and scheduler were coupled to Fitbit's JSON. Introducing `health_types` first made the Google collector a self-contained addition and kept metric continuity a property of the collector's mapping.
 
-**Structured Logging:**
-```python
-logger.info(f"Synced batch: {successful} days written, progress: {batch[-1]['date']}")
-```
+### Threads instead of asyncio
+Concurrency is only needed inside a chunk (at most about 13 requests). A `ThreadPoolExecutor` around the existing synchronous `requests` code gives the same throughput without rewriting transport, auth and tests for async.
 
-Includes context for debugging (counts, dates, specifics).
+### Client-side throttle at the documented quota
+With no fixed sleeps, a long backfill would otherwise hit 429s continually. Spacing request starts at 300/min keeps a backfill at the quota without bouncing off it.
 
-## Future Considerations
+### APScheduler over cron
+Python-native, easy to test, identical behaviour locally, in Docker and in Kubernetes, and keeps the process (and its in-memory token) long-lived.
 
-### Scalability
+### File-based state
+Human-readable, no database, survives restarts on a volume, sufficient for one user.
 
-**Current Limits:**
-- Single Fitbit account
-- Single Victoria Metrics instance
-- Sequential processing
-
-**For Multi-User:**
-1. Add user table/config
-2. Parallel collectors (one per user)
-3. Separate state files per user
-4. User-specific rate limit tracking
-
-### Monitoring
-
-**Potential Additions:**
-- Prometheus exporter for app metrics
-  - Sync success rate
-  - API latency
-  - Rate limit events
-  - Backfill progress
-- Alerting on sync failures
-- Dashboard for sync status
-
-### Additional Metrics
-
-**Fitbit API Supports:**
-- Sleep stages and scores
-- SpO2 measurements
-- Breathing rate
-- HRV (heart rate variability)
-- Water intake
-- Food logs
-- Weight/body composition
-
-**Implementation Pattern:**
-1. Add method to `fitbit_collector.py`
-2. Add metric formatting to `victoria_writer.py`
-3. Update `get_daily_data()` to include new data
-4. Document in README
-
-### Performance Optimizations
-
-**Not Currently Needed, But Possible:**
-- Async API calls (parallel activity + heart rate fetch)
-- Batch multiple days in single Victoria Metrics request
-- Cache frequently accessed config
-- Connection pooling for HTTP requests
-
-**Why Not Now:**
-- Rate limits prevent benefits of parallelization
-- Current performance is acceptable (<1s per day)
-- Premature optimization
-
-## Development Patterns
-
-### Adding a New Feature
-
-1. Update `config.py` if new env vars needed
-2. Implement logic in appropriate module
-3. Update tests (when test suite exists)
-4. Update README.md documentation
-5. Use conventional commit format
-
-### Debugging Issues
-
-1. Check logs for ERROR/WARNING messages
-2. Verify token file exists and is valid
-3. Test API connectivity manually:
-   ```bash
-   curl -u "$VICTORIA_USER:$VICTORIA_PASSWORD" "$VICTORIA_ENDPOINT"
-   ```
-4. Enable DEBUG logging: `python main.py --log-level DEBUG`
-5. Check sync state file for progress
-
-### Testing Locally
-
-- Use `devbox shell` for consistent environment
-- Test with `--authorize` first
-- Monitor logs in real-time
-- Check Victoria Metrics UI for data arrival
+### Runtime image without pip
+Dependencies are installed into an isolated prefix in the builder stage and copied in; pip is uninstalled from the runtime image. The app never installs packages at runtime, and pip's own CVEs (plus its SBOM declaring a vendored setuptools that Trivy flags) would otherwise fail the image scan.
 
 ## Security Considerations
 
-**Current Approach:**
-- Secrets in environment variables (12-factor app)
-- Token file on persistent volume (encrypted at rest in K8s)
-- Basic auth for Victoria Metrics
-- OAuth2 for Fitbit
+- Secrets via `/run/secrets/*` (External Secrets Operator + 1Password) or environment variables; never in the repo
+- Token files created with mode 600; `.env`, `data/` and probe output are gitignored
+- Read-only Google scopes only
+- Non-root container (UID 1000), no pip in the runtime image
+- Victoria Metrics over HTTPS with basic auth
+- Only daily aggregates and coarse intraday windows are stored; labels are pseudonymous (`user` is configurable)
 
-**Production Hardening:**
-- Use Kubernetes Secrets for credentials
-- Consider sealed secrets or external secret management
-- Rotate Victoria Metrics credentials periodically
-- Monitor for token leakage in logs
+## Future Considerations
 
-**No PII Storage:**
-- Only stores aggregated daily metrics
-- No detailed activity logs (GPS, etc.)
-- User ID configurable (pseudonymous labels)
+- **Device metrics:** request `googlehealth.settings.readonly` to populate battery and last-sync metrics.
+- **Time zone:** the image has no tzdata, so day boundaries are UTC. Adding `tzdata` and `TZ` would align them with the user's day.
+- **Victoria Metrics cache:** after backfilling historical data, call `/internal/resetRollupResultCache` so dashboards don't serve stale empty results.
+- **Multi-user:** one collector, token file and state file per user; the per-user quota makes this scale linearly.
+- **App metrics:** expose sync success, latency and rate-limit events for alerting.
 
 ## References
 
-- [Fitbit Web API Documentation](https://dev.fitbit.com/build/reference/web-api/)
-- [Victoria Metrics Prometheus Import](https://docs.victoriametrics.com/#how-to-import-data-in-prometheus-exposition-format)
+- [Google Health API](https://developers.google.com/health)
+- [Google Health API REST reference](https://developers.google.com/health/reference/rest)
+- [Google Health API scopes](https://developers.google.com/health/scopes)
+- [Victoria Metrics: importing Prometheus exposition format](https://docs.victoriametrics.com/#how-to-import-data-in-prometheus-exposition-format)
+- [OAuth 2.0 PKCE (RFC 7636)](https://datatracker.ietf.org/doc/html/rfc7636)
+- [Prometheus exposition format](https://prometheus.io/docs/instrumenting/exposition_formats/)
 - [Conventional Commits](https://www.conventionalcommits.org/)
-- [OAuth 2.0 RFC](https://datatracker.ietf.org/doc/html/rfc6749)
-- [Prometheus Exposition Format](https://prometheus.io/docs/instrumenting/exposition_formats/)
