@@ -214,11 +214,46 @@ def test_daily_record_maps_core_metrics(collector, all_metrics_enabled):
     record = collector.get_daily_data(DAY)
 
     assert record["date"] == "2026-03-10"
-    assert record["timestamp"] == int(DAY.timestamp())
     assert record["steps"] == 10000
     assert record["distance"] == pytest.approx(8.0)  # millimetres -> km
     assert record["calories"] == pytest.approx(2500.0)
     assert record["resting_heart_rate"] == 60.0
+
+
+@responses.activate
+def test_completed_day_is_stamped_at_its_last_second(collector, monkeypatch, all_metrics_enabled):
+    """The day's final totals land at the end of the day they describe."""
+    monkeypatch.setattr("src.google_collector._now", lambda: datetime(2026, 3, 12, 9, 30))
+    register_day()
+
+    record = collector.get_daily_data(DAY)
+
+    assert record["timestamp"] == int(datetime(2026, 3, 10, 23, 59, 59).timestamp())
+
+
+@responses.activate
+def test_today_is_stamped_at_sync_time(collector, monkeypatch, all_metrics_enabled):
+    """Each sync adds a point, so the day's progress is visible as it happens."""
+    sync_time = datetime(2026, 3, 10, 14, 15, 7)
+    monkeypatch.setattr("src.google_collector._now", lambda: sync_time)
+    register_day()
+
+    record = collector.get_daily_data(DAY)
+
+    assert record["timestamp"] == int(sync_time.timestamp())
+
+
+@responses.activate
+def test_range_ending_today_stamps_each_day_correctly(collector, monkeypatch, all_metrics_enabled):
+    """The scheduled sync fetches yesterday and today in one range."""
+    sync_time = datetime(2026, 3, 11, 8, 0)
+    monkeypatch.setattr("src.google_collector._now", lambda: sync_time)
+    register_day()
+
+    yesterday, today = collector.get_historical_data(DAY, datetime(2026, 3, 11))
+
+    assert yesterday["timestamp"] == int(datetime(2026, 3, 10, 23, 59, 59).timestamp())
+    assert today["timestamp"] == int(sync_time.timestamp())
 
 
 @responses.activate

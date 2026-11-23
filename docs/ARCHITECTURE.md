@@ -115,7 +115,7 @@ fitbit_steps_total{device="fitbit_air",user="default"} 8000 1767225600000
 ```
 
 - Provider-agnostic: maps `DailyRecord` keys onto metric names
-- Millisecond timestamps; daily metrics use local midnight of the record's date
+- Millisecond timestamps; daily metrics for today use the sync time (one point per sync, so the day's progress is visible) and completed days use 23:59:59 of their date (the final totals)
 - Labels: `user` (`FITBIT_USER_ID`), `device` (`DEVICE_LABEL`), plus `type`, `zone`, `stage`, `device_id`, `device_type` where relevant
 - Basic auth; one POST per day of metrics; connection test on startup
 

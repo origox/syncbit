@@ -113,6 +113,25 @@ def _civil_date(value: dict) -> str | None:
         return None
 
 
+def _now() -> datetime:
+    """Current local time; a seam so tests can fix the clock."""
+    return datetime.now()
+
+
+def _record_timestamp(day: dt.date) -> int:
+    """Unix seconds to stamp a day's totals with.
+
+    Today's (partial) totals are stamped with the sync time, so every sync
+    adds a point and the day's progress is visible as it accumulates.
+    A completed day is stamped at its last second, so its final totals close
+    the day they describe rather than appearing at its start.
+    """
+    now = _now()
+    if day >= now.date():
+        return int(now.timestamp())
+    return int((datetime(day.year, day.month, day.day) + timedelta(days=1, seconds=-1)).timestamp())
+
+
 def _civil(day: dt.date) -> dict:
     """Render a date as a CivilDateTime at midnight."""
     return {"date": {"year": day.year, "month": day.month, "day": day.day}}
@@ -476,11 +495,10 @@ class GoogleHealthCollector:
         day = start
         while day <= end:
             key = day.isoformat()
-            midnight = datetime(day.year, day.month, day.day)
 
             record: DailyRecord = {
                 "date": key,
-                "timestamp": int(midnight.timestamp()),
+                "timestamp": _record_timestamp(day),
                 "steps": int(_num((steps.get(key) or {}).get("steps", {}).get("countSum")) or 0),
                 "distance": (
                     _num((distance.get(key) or {}).get("distance", {}).get("millimetersSum")) or 0.0
