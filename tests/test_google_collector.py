@@ -2,6 +2,7 @@
 
 Response bodies mirror shapes captured from a live account with
 `scripts/probe_google_health.py`, trimmed to the fields the collector reads.
+All values and dates are synthetic.
 """
 
 import json
@@ -17,11 +18,11 @@ from src.config import Config
 from src.google_collector import GoogleHealthCollector
 
 BASE = f"{Config.GOOGLE_API_BASE_URL}/users/me/dataTypes"
-DAY = datetime(2026, 11, 19)
+DAY = datetime(2026, 3, 10)
 
 
 def civil(day: int) -> dict:
-    return {"date": {"year": 2026, "month": 11, "day": day}, "time": {}}
+    return {"date": {"year": 2026, "month": 3, "day": day}, "time": {}}
 
 
 def rollup(day: int, key: str, value: dict) -> dict:
@@ -31,27 +32,27 @@ def rollup(day: int, key: str, value: dict) -> dict:
 def daily(key: str, day: int, **fields) -> dict:
     return {
         "dataSource": {"platform": "FITBIT"},
-        key: {"date": {"year": 2026, "month": 11, "day": day}, **fields},
+        key: {"date": {"year": 2026, "month": 3, "day": day}, **fields},
     }
 
 
 SLEEP_SESSION = {
     "sleep": {
-        # 21:31Z + 1h offset on the 19th, ending 06:39Z + 1h on the 20th.
+        # 22:00Z + 1h offset on the 10th, ending 06:00Z + 1h on the 11th.
         "interval": {
-            "startTime": "2026-11-19T21:31:00Z",
+            "startTime": "2026-03-10T22:00:00Z",
             "startUtcOffset": "3600s",
-            "endTime": "2026-11-20T06:39:00Z",
+            "endTime": "2026-03-11T06:00:00Z",
             "endUtcOffset": "3600s",
         },
         "type": "STAGES",
         "summary": {
-            "minutesAsleep": "478",
+            "minutesAsleep": "420",
             "stagesSummary": [
-                {"type": "AWAKE", "minutes": "70"},
-                {"type": "LIGHT", "minutes": "301"},
-                {"type": "DEEP", "minutes": "65"},
-                {"type": "REM", "minutes": "112"},
+                {"type": "AWAKE", "minutes": "60"},
+                {"type": "LIGHT", "minutes": "240"},
+                {"type": "DEEP", "minutes": "70"},
+                {"type": "REM", "minutes": "110"},
             ],
         },
     }
@@ -106,11 +107,11 @@ def add_list(data_type: str, points: list[dict], status: int = 200) -> None:
     )
 
 
-def register_day(day: int = 19, sleep: list[dict] | None = None) -> None:
+def register_day(day: int = 10, sleep: list[dict] | None = None) -> None:
     """Register every endpoint a one-day collection hits."""
-    add_rollup("steps", [rollup(day, "steps", {"countSum": "18647"})])
-    add_rollup("distance", [rollup(day, "distance", {"millimetersSum": "14755900"})])
-    add_rollup("total-calories", [rollup(day, "totalCalories", {"kcalSum": 3764.9})])
+    add_rollup("steps", [rollup(day, "steps", {"countSum": "10000"})])
+    add_rollup("distance", [rollup(day, "distance", {"millimetersSum": "8000000"})])
+    add_rollup("total-calories", [rollup(day, "totalCalories", {"kcalSum": 2500.0})])
     add_rollup(
         "active-minutes",
         [
@@ -119,9 +120,9 @@ def register_day(day: int = 19, sleep: list[dict] | None = None) -> None:
                 "activeMinutes",
                 {
                     "activeMinutesRollupByActivityLevel": [
-                        {"activityLevel": "LIGHT", "activeMinutesSum": "114"},
-                        {"activityLevel": "MODERATE", "activeMinutesSum": "9"},
-                        {"activityLevel": "VIGOROUS", "activeMinutesSum": "135"},
+                        {"activityLevel": "LIGHT", "activeMinutesSum": "120"},
+                        {"activityLevel": "MODERATE", "activeMinutesSum": "20"},
+                        {"activityLevel": "VIGOROUS", "activeMinutesSum": "30"},
                     ]
                 },
             )
@@ -135,10 +136,10 @@ def register_day(day: int = 19, sleep: list[dict] | None = None) -> None:
                 "timeInHeartRateZone",
                 {
                     "timeInHeartRateZones": [
-                        {"heartRateZone": "LIGHT", "duration": "76920s"},
-                        {"heartRateZone": "MODERATE", "duration": "5340s"},
-                        {"heartRateZone": "VIGOROUS", "duration": "1980s"},
-                        {"heartRateZone": "PEAK", "duration": "120s"},
+                        {"heartRateZone": "LIGHT", "duration": "60000s"},
+                        {"heartRateZone": "MODERATE", "duration": "3600s"},
+                        {"heartRateZone": "VIGOROUS", "duration": "1800s"},
+                        {"heartRateZone": "PEAK", "duration": "300s"},
                     ]
                 },
             )
@@ -152,39 +153,39 @@ def register_day(day: int = 19, sleep: list[dict] | None = None) -> None:
                 "caloriesInHeartRateZone",
                 {
                     "caloriesInHeartRateZones": [
-                        {"heartRateZone": "LIGHT", "kcal": 2375.4},
-                        {"heartRateZone": "PEAK", "kcal": 16.6},
+                        {"heartRateZone": "LIGHT", "kcal": 2000.0},
+                        {"heartRateZone": "PEAK", "kcal": 25.0},
                     ]
                 },
             )
         ],
     )
-    add_list("daily-resting-heart-rate", [daily("dailyRestingHeartRate", day, beatsPerMinute="59")])
+    add_list("daily-resting-heart-rate", [daily("dailyRestingHeartRate", day, beatsPerMinute="60")])
     add_list(
         "daily-oxygen-saturation",
         [
             daily(
                 "dailyOxygenSaturation",
                 day,
-                averagePercentage=95.7,
-                lowerBoundPercentage=93.1,
-                upperBoundPercentage=98.7,
+                averagePercentage=96.0,
+                lowerBoundPercentage=94.0,
+                upperBoundPercentage=99.0,
             )
         ],
     )
-    add_list("daily-respiratory-rate", [daily("dailyRespiratoryRate", day, breathsPerMinute=16.6)])
+    add_list("daily-respiratory-rate", [daily("dailyRespiratoryRate", day, breathsPerMinute=15.0)])
     add_list(
         "daily-heart-rate-variability",
-        [daily("dailyHeartRateVariability", day, averageHeartRateVariabilityMilliseconds=28.85)],
+        [daily("dailyHeartRateVariability", day, averageHeartRateVariabilityMilliseconds=40.0)],
     )
-    add_list("daily-vo2-max", [daily("dailyVo2Max", day, vo2Max=41.5)])
+    add_list("daily-vo2-max", [daily("dailyVo2Max", day, vo2Max=45.0)])
     add_list(
         "daily-sleep-temperature-derivations",
         [
             daily(
                 "dailySleepTemperatureDerivations",
                 day,
-                nightlyTemperatureCelsius=34.5,
+                nightlyTemperatureCelsius=34.2,
                 baselineTemperatureCelsius=34.0,
             )
         ],
@@ -212,12 +213,12 @@ def test_daily_record_maps_core_metrics(collector, all_metrics_enabled):
 
     record = collector.get_daily_data(DAY)
 
-    assert record["date"] == "2026-11-19"
+    assert record["date"] == "2026-03-10"
     assert record["timestamp"] == int(DAY.timestamp())
-    assert record["steps"] == 18647
-    assert record["distance"] == pytest.approx(14.7559)  # millimetres -> km
-    assert record["calories"] == pytest.approx(3764.9)
-    assert record["resting_heart_rate"] == 59.0
+    assert record["steps"] == 10000
+    assert record["distance"] == pytest.approx(8.0)  # millimetres -> km
+    assert record["calories"] == pytest.approx(2500.0)
+    assert record["resting_heart_rate"] == 60.0
 
 
 @responses.activate
@@ -227,9 +228,9 @@ def test_activity_levels_map_to_fitbit_names_without_sedentary(collector, all_me
     record = collector.get_daily_data(DAY)
 
     assert record["active_minutes"] == {
-        "lightly_active": 114,
-        "fairly_active": 9,
-        "very_active": 135,
+        "lightly_active": 120,
+        "fairly_active": 20,
+        "very_active": 30,
     }
 
 
@@ -241,9 +242,9 @@ def test_heart_rate_zones_keep_fitbit_labels(collector, all_metrics_enabled):
     zones = {z["zone"]: z for z in collector.get_daily_data(DAY)["heart_rate_zones"]}
 
     assert set(zones) == {"out_of_range", "fat_burn", "cardio", "peak"}
-    assert zones["fat_burn"]["minutes"] == 89.0
-    assert zones["cardio"]["minutes"] == 33.0
-    assert zones["out_of_range"]["calories"] == pytest.approx(2375.4)
+    assert zones["fat_burn"]["minutes"] == 60.0
+    assert zones["cardio"]["minutes"] == 30.0
+    assert zones["out_of_range"]["calories"] == pytest.approx(2000.0)
     # Calories reported for only some zones are not invented for the rest.
     assert "calories" not in zones["cardio"]
 
@@ -254,12 +255,12 @@ def test_optional_daily_summaries_are_mapped(collector, all_metrics_enabled):
 
     record = collector.get_daily_data(DAY)
 
-    assert record["spo2"] == {"avg": 95.7, "min": 93.1, "max": 98.7}
-    assert record["breathing_rate"] == 16.6
-    assert record["hrv_rmssd_ms"] == 28.85
-    assert record["vo2_max"] == 41.5
+    assert record["spo2"] == {"avg": 96.0, "min": 94.0, "max": 99.0}
+    assert record["breathing_rate"] == 15.0
+    assert record["hrv_rmssd_ms"] == 40.0
+    assert record["vo2_max"] == 45.0
     # Fitbit reported temperature relative to baseline; Google gives both.
-    assert record["skin_temp_relative_c"] == pytest.approx(0.5)
+    assert record["skin_temp_relative_c"] == pytest.approx(0.2)
 
 
 @responses.activate
@@ -272,37 +273,37 @@ def test_daily_summary_filter_uses_snake_case_prefix(collector, all_metrics_enab
     (request,) = requests_to("daily-resting-heart-rate")
     filter_expr = parse_qs(urlparse(request.url).query)["filter"][0]
     assert filter_expr == (
-        'daily_resting_heart_rate.date >= "2026-11-19" '
-        'AND daily_resting_heart_rate.date < "2026-11-20"'
+        'daily_resting_heart_rate.date >= "2026-03-10" '
+        'AND daily_resting_heart_rate.date < "2026-03-11"'
     )
 
 
 @responses.activate
 def test_sleep_is_attributed_to_the_wake_up_date(collector, all_metrics_enabled):
-    register_day(day=20, sleep=[SLEEP_SESSION])
+    register_day(day=11, sleep=[SLEEP_SESSION])
 
-    record = collector.get_daily_data(datetime(2026, 11, 20))
+    record = collector.get_daily_data(datetime(2026, 3, 11))
 
     assert record["sleep"] == {
-        "total_minutes": 478.0,
-        "stages": {"wake": 70.0, "light": 301.0, "deep": 65.0, "rem": 112.0},
+        "total_minutes": 420.0,
+        "stages": {"wake": 60.0, "light": 240.0, "deep": 70.0, "rem": 110.0},
     }
 
 
 @responses.activate
 def test_sleep_sessions_ending_on_one_date_are_summed(collector, all_metrics_enabled):
     nap = json.loads(json.dumps(SLEEP_SESSION))
-    nap["sleep"]["interval"]["endTime"] = "2026-11-20T14:00:00Z"
+    nap["sleep"]["interval"]["endTime"] = "2026-03-11T14:00:00Z"
     nap["sleep"]["summary"] = {
         "minutesAsleep": "30",
         "stagesSummary": [{"type": "LIGHT", "minutes": "30"}],
     }
-    register_day(day=20, sleep=[SLEEP_SESSION, nap])
+    register_day(day=11, sleep=[SLEEP_SESSION, nap])
 
-    sleep = collector.get_daily_data(datetime(2026, 11, 20))["sleep"]
+    sleep = collector.get_daily_data(datetime(2026, 3, 11))["sleep"]
 
-    assert sleep["total_minutes"] == 508.0
-    assert sleep["stages"]["light"] == 331.0
+    assert sleep["total_minutes"] == 450.0
+    assert sleep["stages"]["light"] == 270.0
 
 
 @responses.activate
@@ -328,7 +329,7 @@ def test_failed_optional_metric_does_not_lose_the_day(collector, monkeypatch, al
 
     record = collector.get_daily_data(DAY)
 
-    assert record["steps"] == 18647
+    assert record["steps"] == 10000
     assert "spo2" not in record
 
 
@@ -415,7 +416,7 @@ def test_list_follows_page_tokens(collector, all_metrics_enabled):
     responses.add(
         responses.GET,
         f"{BASE}/daily-resting-heart-rate/dataPoints",
-        json={"dataPoints": [daily("dailyRestingHeartRate", 19, beatsPerMinute="61")]},
+        json={"dataPoints": [daily("dailyRestingHeartRate", 10, beatsPerMinute="61")]},
     )
 
     record = collector.get_daily_data(DAY)
@@ -471,7 +472,7 @@ def test_unauthorized_refreshes_once_and_retries(collector, auth, all_metrics_en
     responses.add(
         responses.POST,
         f"{BASE}/steps/dataPoints:dailyRollUp",
-        json={"rollupDataPoints": [rollup(19, "steps", {"countSum": "5"})]},
+        json={"rollupDataPoints": [rollup(10, "steps", {"countSum": "5"})]},
     )
 
     record = collector.get_daily_data(DAY)
@@ -488,7 +489,7 @@ def test_transient_errors_are_retried(collector, monkeypatch, all_metrics_enable
     responses.add(
         responses.POST,
         f"{BASE}/steps/dataPoints:dailyRollUp",
-        json={"rollupDataPoints": [rollup(19, "steps", {"countSum": "7"})]},
+        json={"rollupDataPoints": [rollup(10, "steps", {"countSum": "7"})]},
     )
 
     assert collector.get_daily_data(DAY)["steps"] == 7
@@ -502,10 +503,10 @@ def test_first_available_date_is_membership_start(collector):
     responses.add(
         responses.GET,
         f"{Config.GOOGLE_API_BASE_URL}/users/me/profile",
-        json={"membershipStartDate": {"year": 2015, "month": 8, "day": 28}},
+        json={"membershipStartDate": {"year": 2020, "month": 1, "day": 1}},
     )
 
-    assert collector.get_first_available_date() == datetime(2015, 8, 28)
+    assert collector.get_first_available_date() == datetime(2020, 1, 1)
 
 
 @responses.activate
@@ -516,9 +517,7 @@ def test_intraday_uses_rollup_windows_in_local_time(collector, monkeypatch):
     monkeypatch.setattr(Config, "INTRADAY_DETAIL_LEVEL", "5min")
 
     # The API answers in UTC; local midnight must come back as "00:00:00".
-    local_midnight_utc = (
-        datetime(2026, 11, 19).astimezone().astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
-    )
+    local_midnight_utc = DAY.astimezone().astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
     responses.add(
         responses.POST,
         f"{BASE}/heart-rate/dataPoints:rollUp",
