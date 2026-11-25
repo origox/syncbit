@@ -12,7 +12,7 @@ image:
   # -- Image pull policy
   pullPolicy: IfNotPresent
   # -- Overrides the image tag whose default is the chart appVersion
-  tag: ""
+  tag: "@sha256:6a17ba05a50207d9db6f1f1e4f92fcd9670c144470e68e47927b32eb772cf3de"
 
 # -- Image pull secrets for private registries
 imagePullSecrets: []
